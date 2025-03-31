@@ -1,0 +1,25 @@
+digraph AFD {
+	F
+	I [shape=doublecircle]
+	E [shape=doublecircle]
+	C
+	H [shape=doublecircle]
+	G
+	B
+	A
+	D [shape=doublecircle]
+	A -> B [label=a]
+	A -> C [label=b]
+	B -> D [label=b]
+	C -> E [label=a]
+	D -> F [label=a]
+	D -> G [label=b]
+	E -> F [label=a]
+	E -> G [label=b]
+	F -> H [label=b]
+	G -> I [label=a]
+	H -> F [label=a]
+	H -> G [label=b]
+	I -> F [label=a]
+	I -> G [label=b]
+}
