@@ -34,9 +34,9 @@ def main():
         print(f"\n-> Procesando token='{token_name}' con regex='{expanded_regex}'")
         try:
             postfix = shuntingYard(expanded_regex)
-            print(f"   Postfix = '{postfix}'")
+            # print(f"   Postfix = '{postfix}'")
             afn = armarAFN(postfix)
-            print(f"   AFN transitions => {afn.transitions}")
+            # print(f"   AFN transitions => {afn.transitions}")
 
             afn.token_id = id_counter
             afn.token_name = token_name or f"TOKEN_{id_counter}"
@@ -47,20 +47,20 @@ def main():
             continue
 
     print(f"\n--- Se construyeron {len(token_afns)} AFNs. ---")
-    for afn in token_afns:
-        print(f"  Token={afn.token_name}, transitions={afn.transitions}")
+    # for afn in token_afns:
+        # print(f"  Token={afn.token_name}, transitions={afn.transitions}")
 
     # 4) Combinar AFNs en uno
     afn_completo = combinar_afns(token_afns)
-    print("\n=== AFN COMBINADO ===")
-    print("transitions:", afn_completo.transitions)
+    # print("\n=== AFN COMBINADO ===")
+    # print("transitions:", afn_completo.transitions)
     if hasattr(afn_completo, 'token_map'):
         print("token_map:", afn_completo.token_map)
 
     # 5) Subconjuntos => AFD
     afd_final = subconjuntos(afn_completo)
-    print("\n=== AFD FINAL ===")
-    print("transitions:", afd_final.getTransitions())
+    # print("\n=== AFD FINAL ===")
+    # print("transitions:", afd_final.getTransitions())
     print("start:", afd_final.getStart())
     print("accept:", afd_final.getAccept())
 

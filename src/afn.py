@@ -96,6 +96,7 @@ def armarAFN(postfix_tokens):
     return stack.pop()
 
 
+
 class AFN:
     def __init__(self, start, accept, transitions):
         self.start = start

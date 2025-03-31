@@ -115,6 +115,7 @@ def expandir_definiciones(data):
         return expr  # ya no hacemos escapes aquí
 
 
+    from regex_functions import formatRegex
 
     tokens_expandidos = []
     for raw_expr, token in tokens:
@@ -126,13 +127,11 @@ def expandir_definiciones(data):
             continue
 
         if raw_expr[0] in {"'", '"'} and len(remove_quotes(raw_expr)) == 1:
-            # Para tokens literales (como '+' o '*') antepone una barra para que
-            # se traten como caracteres y no como operadores en la fase de tokenización
             ex = '\\' + remove_quotes(raw_expr)
-        elif cleaned in definiciones:
-            ex = expand(cleaned)
         else:
             ex = expand(cleaned)
+        # Después, forzamos que se re-procese la cadena resultante
+        ex = formatRegex(ex)
         tokens_expandidos.append((ex, token))
         print(f"  ✔ Token={token}, Regex expandida='{ex}'")
     

@@ -20,6 +20,98 @@ def leerArchivo():
             print(f"Expresión inválida detectada y omitida: {linea}")
     return expresiones_regulares
 
+def parseRegex(tokens: list):
+    """
+    Construye el AST a partir de la lista de tokens.
+    Se espera que 'tokens' provenga de tokenizeRegex(expanded),
+    sin pasar por insertConcat.
+    """
+    index = 0  # índice de tokens
+
+    def current():
+        return tokens[index]
+
+    def eat(token_type=None):
+        nonlocal index
+        tok = tokens[index]
+        index += 1
+        if token_type and tok.type != token_type:
+            raise ValueError(f"Se esperaba {token_type}, pero se obtuvo {tok.type}")
+        return tok
+
+    def parse_union():
+        node = parse_concat()
+        while index < len(tokens) and tokens[index].type == T_UNION:
+            eat(T_UNION)
+            right = parse_concat()
+            node = UnionNode(node, right)
+        return node
+
+    def parse_concat():
+        node = parse_repeat()
+        # Mientras el siguiente token sea candidato a comenzar un operando
+        while index < len(tokens) and tokens[index].type in {T_CHAR, T_LPAREN}:
+            right = parse_repeat()
+            node = ConcatNode(node, right)
+        return node
+
+    def parse_repeat():
+        node = parse_primary()
+        while index < len(tokens) and tokens[index].type in {T_STAR, T_PLUS, T_QUESTION}:
+            op = eat()
+            if op.type == T_STAR:
+                node = StarNode(node)
+            elif op.type == T_PLUS:
+                node = PlusNode(node)
+            elif op.type == T_QUESTION:
+                node = QuestionNode(node)
+        return node
+
+    def parse_primary():
+        tok = tokens[index]
+        if tok.type == T_CHAR:
+            eat(T_CHAR)
+            return LiteralNode(tok.val)
+        elif tok.type == T_LPAREN:
+            eat(T_LPAREN)
+            node = parse_union()
+            eat(T_RPAREN)
+            return node
+        else:
+            raise ValueError(f"Token inesperado en primary: {tok}")
+
+    ast = parse_union()
+    return ast
+
+def astToPostfix(ast: "RegexNode") -> list:
+    result = []
+    def traverse(node):
+        if isinstance(node, LiteralNode):
+            result.append(Token(T_CHAR, node.value))
+        elif isinstance(node, ConcatNode):
+            traverse(node.left)
+            traverse(node.right)
+            result.append(Token(T_CONCAT))
+        elif isinstance(node, UnionNode):
+            traverse(node.left)
+            traverse(node.right)
+            result.append(Token(T_UNION))
+        elif isinstance(node, StarNode):
+            traverse(node.child)
+            result.append(Token(T_STAR))
+        elif isinstance(node, PlusNode):
+            traverse(node.child)
+            result.append(Token(T_PLUS))
+        elif isinstance(node, QuestionNode):
+            traverse(node.child)
+            result.append(Token(T_QUESTION))
+        else:
+            raise ValueError("Nodo AST desconocido")
+    traverse(ast)
+    return result
+
+
+
 def validarExpresion(expresion: str) -> bool:
     """
     Verifica paréntesis balanceados y operadores con operandos.
@@ -97,12 +189,13 @@ class Token:
 def shuntingYard(regex: str) -> list:
     expanded = formatRegex(regex)
     tokens = tokenizeRegex(expanded)
-    tokens2 = insertConcat(tokens)
-    postfix_tokens = applyShunt(tokens2)
-        
-    print("Tokens:", tokens2)
+    # NOTA: No llamamos a insertConcat, ya que el parser tratará la concatenación implícita.
+    ast = parseRegex(tokens)
+    postfix_tokens = astToPostfix(ast)
+    print("AST:", ast)
     print("Postfix tokens:", postfix_tokens)
     return postfix_tokens
+
 
 
 # Lista de símbolos válidos (ASCII 33 al 255)
@@ -285,7 +378,7 @@ def tranformClass(regex: str) -> str:
         if regex[i] == '[':
             i += 1
             expanded = []
-            # Si aparece un '^', no lo soportamos (como indica tu código)
+            # Si aparece un '^', no lo soportamos
             if i < len(regex) and regex[i] == '^':
                 i += 1
                 raise NotImplementedError("No soportamos ^negado todavía.")
@@ -295,10 +388,40 @@ def tranformClass(regex: str) -> str:
                     regex[i] == "'" and regex[i+2] == "'" and 
                     regex[i+3] == '-' and regex[i+4] == "'" and 
                     regex[i+6] == "'"):
-                    start = regex[i+1]
-                    end = regex[i+5]
-                    expanded += expand_range(start, end)
+                    literal1 = regex[i+1]
+                    literal2 = regex[i+5]
+                    # Si son ambos letras o ambos dígitos, se expande el rango
+                    if (literal1.isalpha() and literal2.isalpha()) or (literal1.isdigit() and literal2.isdigit()):
+                        expanded += expand_range(literal1, literal2)
+                    else:
+                        # En caso contrario, se tratan como dos literales separados, escapándolos si es necesario.
+                        if literal1 in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
+                            literal1 = "\\" + literal1
+                        if literal2 in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
+                            literal2 = "\\" + literal2
+                        expanded.append(literal1)
+                        expanded.append(literal2)
                     i += 7
+
+                elif regex[i] in {"'", '"'}:
+                    # Extraer literal entre comillas
+                    quote = regex[i]
+                    j = i + 1
+                    literal = ""
+                    while j < len(regex) and regex[j] != quote:
+                        literal += regex[j]
+                        j += 1
+                    if j < len(regex) and regex[j] == quote:
+                        i = j + 1
+                    else:
+                        i = j
+                    # Si el literal es un operador especial, escápalo
+                    if literal in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
+                        expanded.append("\\" + literal)
+                    else:
+                        expanded.append(literal)
+
+
                 else:
                     expanded.append(regex[i])
                     i += 1
@@ -310,6 +433,7 @@ def tranformClass(regex: str) -> str:
             output += regex[i]
             i += 1
     return output
+
 
 
 def transformPosKleene(regex: str) -> str:
@@ -376,3 +500,47 @@ def considerPeriod(r: str) -> str:
         else:
             out += c
     return out
+
+
+# --- AST para expresiones regulares ---
+
+class RegexNode:
+    pass
+
+class LiteralNode(RegexNode):
+    def __init__(self, value):
+        self.value = value
+    def __repr__(self):
+        return f"Literal({self.value})"
+
+class ConcatNode(RegexNode):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+    def __repr__(self):
+        return f"Concat({self.left}, {self.right})"
+
+class UnionNode(RegexNode):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+    def __repr__(self):
+        return f"Union({self.left}, {self.right})"
+
+class StarNode(RegexNode):
+    def __init__(self, child):
+        self.child = child
+    def __repr__(self):
+        return f"Star({self.child})"
+
+class PlusNode(RegexNode):
+    def __init__(self, child):
+        self.child = child
+    def __repr__(self):
+        return f"Plus({self.child})"
+
+class QuestionNode(RegexNode):
+    def __init__(self, child):
+        self.child = child
+    def __repr__(self):
+        return f"Question({self.child})"
