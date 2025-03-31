@@ -64,30 +64,35 @@ def epsilonOperator():
     transitions = {(start, ''): [accept]}
     return AFN(start, accept, transitions)
 
+from regex_functions import T_CHAR, T_CONCAT, T_UNION, T_STAR, T_PLUS, T_QUESTION
 
-def armarAFN(postfix):
+def armarAFN(postfix_tokens):
     stack = Stack()
-    for char in postfix:
-        if char == '.':
+    for token in postfix_tokens:
+        if token.type == T_CONCAT:
             afn2 = stack.pop()
             afn1 = stack.pop()
             stack.push(concatOperator(afn1, afn2))
-        elif char == '|':
+        elif token.type == T_UNION:
             afn2 = stack.pop()
             afn1 = stack.pop()
             stack.push(orOperator(afn1, afn2))
-        elif char == '*':
+        elif token.type == T_STAR:
             nfa = stack.pop()
             stack.push(kleeneOperator(nfa))
-        elif char == '+':
+        elif token.type == T_PLUS:
             nfa = stack.pop()
             stack.push(concatOperator(nfa, kleeneOperator(nfa)))
-        elif char == '?':
+        elif token.type == T_QUESTION:
             nfa = stack.pop()
             eps = epsilonOperator()
             stack.push(orOperator(eps, nfa))
+        elif token.type == T_CHAR:
+            stack.push(character(token.val))
         else:
-            stack.push(character(char))
+            raise ValueError(f"Token inesperado: {token}")
+    if stack.size() != 1:
+        raise ValueError("La notación postfix generó un número incorrecto de operandos.")
     return stack.pop()
 
 

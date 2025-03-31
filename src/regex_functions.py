@@ -94,22 +94,16 @@ class Token:
     def __repr__(self):
         return f"Token({self.type},{self.val})"
 
-def shuntingYard(regex: str) -> str:
-    """
-    Función principal que tu main.py llama.
-    1) formatRegex => expandir clases, etc.
-    2) tokenizeRegex => convertimos a tokens
-    3) insertConcat => metemos CONCAT implícita
-    4) applyShunt => generamos postfix
-    """
+def shuntingYard(regex: str) -> list:
     expanded = formatRegex(regex)
     tokens = tokenizeRegex(expanded)
     tokens2 = insertConcat(tokens)
-    postfix = applyShunt(tokens2)
+    postfix_tokens = applyShunt(tokens2)
         
-    print(f"Tokens: {tokens2}")
-    print(f"Postfix: {postfix}")
-    return postfix
+    print("Tokens:", tokens2)
+    print("Postfix tokens:", postfix_tokens)
+    return postfix_tokens
+
 
 # Lista de símbolos válidos (ASCII 33 al 255)
 VALID_ASCII = [chr(i) for i in range(33, 256)]
@@ -213,39 +207,41 @@ def insertConcat(tokens: list):
     return res
 
 
-def applyShunt(tokens: list) -> str:
+def applyShunt(tokens: list) -> list:
     output = []
     stack = []
     for tk in tokens:
+        print("Procesando token:", tk, "Stack:", [s.type for s in stack], "Output:", [t.type for t in output])
         if tk.type == T_EOF:
             break
         if tk.type == T_CHAR:
-            output.append(tk.val)
+            output.append(tk)  # agregamos el token tal como está
         elif tk.type == T_LPAREN:
             stack.append(tk)
         elif tk.type == T_RPAREN:
             while stack and stack[-1].type != T_LPAREN:
-                output.append(token2symbol(stack.pop()))
+                output.append(stack.pop())
             if not stack:
                 raise ValueError("Falta '(' en la expresión.")
-            stack.pop()  # quita LPAREN
+            stack.pop()  # quita el T_LPAREN
         elif tk.type in [T_UNION, T_CONCAT, T_STAR, T_PLUS, T_QUESTION]:
-            # Para operadores unarios (T_STAR, T_PLUS, T_QUESTION) usamos ">" en vez de ">=".
+            # Para operadores unarios (T_STAR, T_PLUS, T_QUESTION) usamos ">" en lugar de ">=".
             while stack and stack[-1].type != T_LPAREN and (
                 (tk.type in [T_STAR, T_PLUS, T_QUESTION] and get_token_precedence(stack[-1].type) > get_token_precedence(tk.type))
                 or (tk.type in [T_UNION, T_CONCAT] and get_token_precedence(stack[-1].type) >= get_token_precedence(tk.type))
             ):
-                output.append(token2symbol(stack.pop()))
+                output.append(stack.pop())
             stack.append(tk)
         else:
-            # ignorar otros
+            # ignoramos otros
             pass
     while stack:
         top = stack.pop()
         if top.type in [T_LPAREN, T_RPAREN]:
             raise ValueError("Paréntesis sin cerrar.")
-        output.append(token2symbol(top))
-    return ''.join(output)
+        output.append(top)
+    print("Final output tokens:", output)
+    return output
 
 
 def token2symbol(tk: Token)->str:
