@@ -199,22 +199,19 @@ def tokenizeRegex(expr: str):
 
 
 def insertConcat(tokens: list):
-    """
-    Inserta T_CONCAT cuando dos tokens se pegan sin operador.
-    Regla típica: 
-      Si el token anterior es (CHAR,RPAREN) 
-      y el siguiente es (CHAR,LPAREN), meto CONCAT
-    """
-    res=[]
-    prev=None
+    res = []
+    prev = None
+    # Consideramos que los siguientes tokens pueden funcionar como operandos:
+    operandantes = {T_CHAR, T_RPAREN, T_STAR, T_PLUS, T_QUESTION}
+    operanddespues = {T_CHAR, T_LPAREN}
     for tk in tokens:
         if prev:
-            # Insertar CONCAT si prev es CHAR,RPAREN y tk es CHAR,LPAREN
-            if prev.type in [T_CHAR,T_RPAREN] and tk.type in [T_CHAR,T_LPAREN]:
+            if prev.type in operandantes and tk.type in operanddespues:
                 res.append(Token(T_CONCAT))
         res.append(tk)
-        prev=tk
+        prev = tk
     return res
+
 
 def applyShunt(tokens: list) -> str:
     output = []
@@ -257,7 +254,7 @@ def token2symbol(tk: Token)->str:
     elif tk.type==T_STAR: return '*'
     elif tk.type==T_PLUS: return '+'
     elif tk.type==T_QUESTION: return '?'
-    elif tk.type==T_CHAR: return tk.val
+    elif tk.type==T_CHAR: return tk.val 
     return ''
 
 ###########################
