@@ -1,3 +1,9 @@
+import string
+
+def is_id_char(c):
+    # Consideramos como caracter de identificador: letras (mayúsculas y minúsculas), dígitos y '_'
+    return c in string.ascii_letters + string.digits + "_"
+
 def expandir_definiciones(data):
     definiciones = data['definitions']
     tokens = data['tokens']
@@ -17,22 +23,30 @@ def expandir_definiciones(data):
 
     def replace_definitions(expr):
         changed = True
+        # Iterar sobre las definiciones ordenadas de mayor a menor longitud
+        definiciones_ordenadas = sorted(definiciones.items(), key=lambda item: len(item[0]), reverse=True)
         while changed:
             changed = False
-            for nombre, definicion in definiciones.items():
-                if nombre in expr:
-                    new_expr = ''
-                    i = 0
-                    while i < len(expr):
-                        if expr[i:i+len(nombre)] == nombre:
+            new_expr = ''
+            i = 0
+            while i < len(expr):
+                replaced = False
+                for nombre, definicion in definiciones_ordenadas:
+                    if expr[i:i+len(nombre)] == nombre:
+                        left_ok = (i == 0) or (not is_id_char(expr[i-1]))
+                        right_ok = (i+len(nombre) == len(expr)) or (not is_id_char(expr[i+len(nombre)]))
+                        if left_ok and right_ok:
                             new_expr += f"({replace_definitions(definicion)})"
                             i += len(nombre)
                             changed = True
-                        else:
-                            new_expr += expr[i]
-                            i += 1
-                    expr = new_expr
+                            replaced = True
+                            break
+                if not replaced:
+                    new_expr += expr[i]
+                    i += 1
+            expr = new_expr
         return expr
+
 
     def expand_brackets(expr):
         result = ''

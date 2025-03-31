@@ -122,51 +122,63 @@ def tokenizeRegex(expr: str):
       - '|', '*', '+', '?'
       - escapes con '\'
       - corchetes [ ] => los convierte en T_CHAR con el contenido
+      - literales entre comillas (simple o doble)
     """
-    i=0
-    length=len(expr)
-    result=[]
-    while i<length:
-        c=expr[i]
-#        if c.isspace():
-#            i+=1
-#            continue
-        if c=='(':
+    i = 0
+    length = len(expr)
+    result = []
+    while i < length:
+        c = expr[i]
+        if c == '(':
             result.append(Token(T_LPAREN))
-            i+=1
-        elif c==')':
+            i += 1
+        elif c == ')':
             result.append(Token(T_RPAREN))
-            i+=1
-        elif c=='|':
+            i += 1
+        elif c == '|':
             result.append(Token(T_UNION))
-            i+=1
-        elif c=='*':
+            i += 1
+        elif c == '*':
             result.append(Token(T_STAR))
-            i+=1
-        elif c=='+':
+            i += 1
+        elif c == '+':
             result.append(Token(T_PLUS))
-            i+=1
-        elif c=='?':
+            i += 1
+        elif c == '?':
             result.append(Token(T_QUESTION))
-            i+=1
-        elif c=='[':
+            i += 1
+        elif c == '[':
             # Tomar todo hasta ']' y considerarlo un literal
-            j=i+1
-            bracketLevel=1
-            content=''
-            while j<length and bracketLevel>0:
-                if expr[j]=='[':
-                    bracketLevel+=1
-                elif expr[j]==']':
-                    bracketLevel-=1
-                    if bracketLevel==0:
+            j = i + 1
+            bracketLevel = 1
+            content = ''
+            while j < length and bracketLevel > 0:
+                if expr[j] == '[':
+                    bracketLevel += 1
+                elif expr[j] == ']':
+                    bracketLevel -= 1
+                    if bracketLevel == 0:
                         break
-                content+=expr[j]
-                j+=1
-            # content es lo que hay dentro
-            # lo ponemos como T_CHAR de todo ese bloque => p.e. [abc] => T_CHAR('[abc]')
-            result.append(Token(T_CHAR,f'[{content}]'))
-            i=j+1
+                content += expr[j]
+                j += 1
+            # content es lo que hay dentro de los corchetes
+            result.append(Token(T_CHAR, f'[{content}]'))
+            i = j + 1
+        elif c in {"'", '"'}:
+            # Si se encuentra una comilla, se recopila todo hasta la comilla de cierre
+            quote = c
+            j = i + 1
+            literal = ""
+            while j < length and expr[j] != quote:
+                literal += expr[j]
+                j += 1
+            if j < length and expr[j] == quote:
+                result.append(Token(T_CHAR, literal))
+                i = j + 1
+            else:
+                # Si no se encuentra comilla de cierre, se añade el caracter y se continúa
+                result.append(Token(T_CHAR, c))
+                i += 1
         elif c == '\\' and i + 1 < length:
             escape_char = expr[i + 1]
             if escape_char == 'n':
@@ -178,14 +190,13 @@ def tokenizeRegex(expr: str):
             else:
                 print(f"⚠️ Carácter escapado inválido: \\{escape_char}")
             i += 2
-
-
         else:
-            # un char normal
-            result.append(Token(T_CHAR,c))
-            i+=1
+            # Un caracter normal
+            result.append(Token(T_CHAR, c))
+            i += 1
     result.append(Token(T_EOF))
     return result
+
 
 def insertConcat(tokens: list):
     """
@@ -205,43 +216,40 @@ def insertConcat(tokens: list):
         prev=tk
     return res
 
-def applyShunt(tokens: list)->str:
-    """
-    Aplica shunting yard a la lista de tokens => string postfix.
-    """
-    output=[]
-    stack=[]
+def applyShunt(tokens: list) -> str:
+    output = []
+    stack = []
     for tk in tokens:
-        if tk.type==T_EOF:
+        if tk.type == T_EOF:
             break
-        if tk.type==T_CHAR:
-            # volcar su val al postfix
+        if tk.type == T_CHAR:
             output.append(tk.val)
-        elif tk.type==T_LPAREN:
+        elif tk.type == T_LPAREN:
             stack.append(tk)
-        elif tk.type==T_RPAREN:
-            # desapilar
-            while stack and stack[-1].type!=T_LPAREN:
-                output.append( token2symbol(stack.pop()) )
+        elif tk.type == T_RPAREN:
+            while stack and stack[-1].type != T_LPAREN:
+                output.append(token2symbol(stack.pop()))
             if not stack:
                 raise ValueError("Falta '(' en la expresión.")
-            stack.pop() # quita LPAREN
+            stack.pop()  # quita LPAREN
         elif tk.type in [T_UNION, T_CONCAT, T_STAR, T_PLUS, T_QUESTION]:
-            # Procesar operadores verdaderos
-            while stack and stack[-1].type != T_LPAREN and \
-                get_token_precedence(stack[-1].type) >= get_token_precedence(tk.type):
+            # Para operadores unarios (T_STAR, T_PLUS, T_QUESTION) usamos ">" en vez de ">=".
+            while stack and stack[-1].type != T_LPAREN and (
+                (tk.type in [T_STAR, T_PLUS, T_QUESTION] and get_token_precedence(stack[-1].type) > get_token_precedence(tk.type))
+                or (tk.type in [T_UNION, T_CONCAT] and get_token_precedence(stack[-1].type) >= get_token_precedence(tk.type))
+            ):
                 output.append(token2symbol(stack.pop()))
             stack.append(tk)
-
         else:
-            # ignore
+            # ignorar otros
             pass
     while stack:
-        top=stack.pop()
-        if top.type in [T_LPAREN,T_RPAREN]:
+        top = stack.pop()
+        if top.type in [T_LPAREN, T_RPAREN]:
             raise ValueError("Paréntesis sin cerrar.")
         output.append(token2symbol(top))
     return ''.join(output)
+
 
 def token2symbol(tk: Token)->str:
     if tk.type==T_UNION: return '|'
@@ -264,32 +272,11 @@ def formatRegex(regex: str) -> str:
     return regexX
 
 
-def tranformOpt(string: str)->str:
-    stack=[]
-    for char in string:
-        if char!='?':
-            stack.append(char)
-        else:
-            temp=''
-            if stack and stack[-1]==')':
-                count=1
-                temp=stack.pop()+temp
-                while count>0 and stack:
-                    top=stack.pop()
-                    temp=top+temp
-                    if top==')':
-                        count+=1
-                    elif top=='(':
-                        count-=1
-                temp=temp[1:-1]
-            elif stack and (stack[-1] not in '()*|'):
-                while stack and (stack[-1] not in '()*|'):
-                    temp=stack.pop()+temp
-            else:
-                continue
-            temp='(ε|'+temp+')'
-            stack.append(temp)
-    return ''.join(stack)
+def tranformOpt(string: str) -> str:
+    # No transformamos el '?' aquí, lo manejaremos en el AFN.
+    return string
+
+
 
 def expand_range(start, end)->list:
     return [chr(i) for i in range(ord(start),ord(end)+1)]

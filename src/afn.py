@@ -57,6 +57,14 @@ def orOperator(afn1, afn2):
         transitions[(state + afn1.accept + 2, symbol)] = [next_state + afn1.accept + 2 for next_state in next_states]
     return AFN(start, accept, transitions)
 
+def epsilonOperator():
+    # Crea un AFN que reconoce la cadena vacía
+    start = 0
+    accept = 1
+    transitions = {(start, ''): [accept]}
+    return AFN(start, accept, transitions)
+
+
 def armarAFN(postfix):
     stack = Stack()
     for char in postfix:
@@ -74,10 +82,14 @@ def armarAFN(postfix):
         elif char == '+':
             nfa = stack.pop()
             stack.push(concatOperator(nfa, kleeneOperator(nfa)))
-
+        elif char == '?':
+            nfa = stack.pop()
+            eps = epsilonOperator()
+            stack.push(orOperator(eps, nfa))
         else:
             stack.push(character(char))
     return stack.pop()
+
 
 class AFN:
     def __init__(self, start, accept, transitions):
