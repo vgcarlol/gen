@@ -1,3 +1,4 @@
+# lexer_generator.py
 import os
 
 def generar_lexer_py(afd, token_map, ruta_salida="output/lexer.py"):
@@ -11,52 +12,48 @@ def analizar(texto):
 """)
 
         for (estado, simbolo), destino in afd.getTransitions().items():
-            # Usar repr para ambas partes:
-            estado_str = repr(estado)      # p.ej. 'A' o '10'
-            simbolo_str = repr(simbolo)    # p.ej. '\\' => "'\\\\'"
-            destino_str = repr(destino)    # p.ej. 'B'
-
+            estado_str = repr(estado)
+            simbolo_str = repr(simbolo)
+            destino_str = repr(destino)
             f.write(f"        ({estado_str}, {simbolo_str}): {destino_str},\n")
 
         f.write("    }\n\n")
 
         f.write("    accepting = {\n")
-        for st, (token_id, token_name) in token_map.items():
-            # token_name es un string también
-            token_name_str = repr(token_name)
-            f.write(f"        {repr(st)}: {token_name_str},\n")
+        if hasattr(afd, "accepting_map"):
+            for estado, (_, token_name) in afd.accepting_map.items():
+                f.write(f"        {repr(estado)}: {repr(token_name)},\n")
         f.write("    }\n\n")
 
         f.write(r"""
-    estado_actual = 'A'
-    lexema = ''
+    estado_inicial = 'A'
     tokens = []
     i = 0
-
     while i < len(texto):
-        c = texto[i]
-        if (estado_actual, c) in transitions:
-            estado_actual = transitions[(estado_actual, c)]
-            lexema += c
-            i += 1
-        else:
-            if estado_actual in accepting:
-                tokens.append((lexema, accepting[estado_actual]))
-                estado_actual = 'A'
-                lexema = ''
-            elif lexema:
-                tokens.append((lexema, 'ERROR'))
-                estado_actual = 'A'
-                lexema = ''
-            else:
-                tokens.append((c, 'ERROR'))
-                i += 1
+        estado_actual = estado_inicial
+        lexema = ''
+        ultimo_token = None
+        ultimo_index = i
 
-    if lexema:
-        if estado_actual in accepting:
-            tokens.append((lexema, accepting[estado_actual]))
+        j = i
+        while j < len(texto):
+            c = texto[j]
+            if (estado_actual, c) in transitions:
+                estado_actual = transitions[(estado_actual, c)]
+                lexema += c
+                if estado_actual in accepting:
+                    ultimo_token = (lexema, accepting[estado_actual])
+                    ultimo_index = j + 1
+                j += 1
+            else:
+                break
+
+        if ultimo_token:
+            tokens.append(ultimo_token)
+            i = ultimo_index
         else:
-            tokens.append((lexema, 'ERROR'))
+            tokens.append((texto[i], 'ERROR'))
+            i += 1
 
     return tokens
 
@@ -64,8 +61,10 @@ if __name__ == '__main__':
     with open('input/codigo.txt', 'r', encoding='utf-8') as file:
         contenido = file.read()
         resultado = analizar(contenido)
+
+    with open('output/tokens.txt', 'w', encoding='utf-8') as out:
         for lexema, token in resultado:
-            print(f"{lexema} -> {token}")
+            out.write(f"{lexema} -> {token}\n")
 """)
 
     print(f"✅ lexer.py generado en: {ruta_salida}")

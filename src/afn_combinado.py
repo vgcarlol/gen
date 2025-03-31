@@ -50,7 +50,7 @@ def combinar_afns(lista_afns):
         current_offset += afn.getAccept() + 2  # salto suficiente
 
     # Guardar info del token en el objeto AFN combinado
-    afn_completo = AFN(new_start, None, transitions)
+    afn_completo = AFN(new_start, accept_states, transitions)
     afn_completo.token_map = token_map
     afn_completo.accept_states = accept_states
     return afn_completo

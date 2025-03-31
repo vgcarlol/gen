@@ -44,7 +44,7 @@ def move(states, symbol, transitions):
 def subconjuntos(afn):
     afn_transitions = afn.getTransitions()
     alphabet = set(symbol for (_, symbol) in afn_transitions if symbol != '')
-    
+
     # Mapear transiciones ε con ''
     transitions = {}
     for (state, symbol), dests in afn_transitions.items():
@@ -79,13 +79,20 @@ def subconjuntos(afn):
 
     # Estados de aceptación
     accepting_states = []
-    for closure_set, name in dfa_state_names.items():
-        if afn.getAccept() in closure_set:
-            accepting_states.append(name)
+    accepting_map = {}
+
+    if hasattr(afn, 'accept_states') and hasattr(afn, 'token_map'):
+        for closure_set, name in dfa_state_names.items():
+            for original_accept in afn.accept_states:
+                if original_accept in closure_set:
+                    if name not in accepting_map:
+                        accepting_states.append(name)
+                        accepting_map[name] = afn.token_map[original_accept]
 
     start_state = dfa_state_names[frozenset(start_closure)]
-
-    return AFD(start_state, accepting_states, dfa_transitions)
+    afd_result = AFD(start_state, accepting_states, dfa_transitions)
+    afd_result.accepting_map = accepting_map  # ¡esto es clave!
+    return afd_result
 
 
 # Minimización
