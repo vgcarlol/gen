@@ -10,23 +10,22 @@ def generar_lexer_py(afd, token_map, ruta_salida="output/lexer.py"):
 def analizar(texto):
     transitions = {
 """)
-
         for (estado, simbolo), destino in afd.getTransitions().items():
             estado_str = repr(estado)
             simbolo_str = repr(simbolo)
             destino_str = repr(destino)
             f.write(f"        ({estado_str}, {simbolo_str}): {destino_str},\n")
-
         f.write("    }\n\n")
-
         f.write("    accepting = {\n")
         if hasattr(afd, "accepting_map"):
             for estado, (_, token_name) in afd.accepting_map.items():
                 f.write(f"        {repr(estado)}: {repr(token_name)},\n")
         f.write("    }\n\n")
 
+        # Se utiliza el estado inicial real obtenido del AFD
+        f.write(f"    estado_inicial = {repr(afd.getStart())}\n")
+
         f.write(r"""
-    estado_inicial = 'A'
     tokens = []
     i = 0
     while i < len(texto):
@@ -66,5 +65,4 @@ if __name__ == '__main__':
         for lexema, token in resultado:
             out.write(f"{lexema} -> {token}\n")
 """)
-
     print(f"✅ lexer.py generado en: {ruta_salida}")

@@ -50,12 +50,12 @@ def subconjuntos(afn):
     for (state, symbol), dests in afn_transitions.items():
         transitions[(state, '' if symbol == 'ε' else symbol)] = dests
 
+    # Inicializamos el estado inicial con un nombre legible, por ejemplo "S0"
     start_closure = epsilon_closure({afn.getStart()}, transitions)
-    dfa_states = [start_closure]
-    dfa_state_names = {frozenset(start_closure): 'A'}
+    dfa_state_names = {frozenset(start_closure): "S0"}
     dfa_transitions = {}
     state_queue = [start_closure]
-    next_state_id = ord('B')
+    next_state_id = 1  # Comenzamos en 1, ya que el estado inicial es "S0"
 
     while state_queue:
         current = state_queue.pop(0)
@@ -70,7 +70,7 @@ def subconjuntos(afn):
 
             closure_frozen = frozenset(closure)
             if closure_frozen not in dfa_state_names:
-                dfa_state_names[closure_frozen] = chr(next_state_id)
+                dfa_state_names[closure_frozen] = f"S{next_state_id}"
                 state_queue.append(closure)
                 next_state_id += 1
 
