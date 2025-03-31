@@ -1,4 +1,3 @@
-# Código: lexer_generator.py
 import os
 
 def generar_lexer_py(afd, token_map, ruta_salida="output/lexer.py"):
@@ -12,17 +11,23 @@ def analizar(texto):
 """)
 
         for (estado, simbolo), destino in afd.getTransitions().items():
-            simbolo_repr = simbolo.replace('\\', '\\\\').replace("'", "\\'")
-            f.write(f"        ({repr(estado)}, '{simbolo_repr}'): '{destino}',\n")
+            # Usar repr para ambas partes:
+            estado_str = repr(estado)      # p.ej. 'A' o '10'
+            simbolo_str = repr(simbolo)    # p.ej. '\\' => "'\\\\'"
+            destino_str = repr(destino)    # p.ej. 'B'
+
+            f.write(f"        ({estado_str}, {simbolo_str}): {destino_str},\n")
 
         f.write("    }\n\n")
 
         f.write("    accepting = {\n")
-        for estado, (token_id, token_name) in token_map.items():
-            f.write(f"        '{estado}': '{token_name}',\n")
+        for st, (token_id, token_name) in token_map.items():
+            # token_name es un string también
+            token_name_str = repr(token_name)
+            f.write(f"        {repr(st)}: {token_name_str},\n")
         f.write("    }\n\n")
 
-        f.write("""
+        f.write(r"""
     estado_actual = 'A'
     lexema = ''
     tokens = []

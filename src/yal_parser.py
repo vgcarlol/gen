@@ -1,31 +1,13 @@
-# yal_parser.py
-
 def leerYAL(ruta):
     """
-    Parser que maneja un archivo .yal en varios estados:
-      - header opcional { ... }
-      - definiciones let
-      - rules (cada rule con tokens)
+    Parser que maneja un archivo .yal line by line.
+    Reconoce:
+      - header opcional { ... } en una línea.
+      - definiciones let x = ...
+      - rule <name> [args] = ...
+        line tokens (regex { action })
       - trailer opcional { ... }
-
-    Retorna un dict con:
-      {
-        'header': str or None,
-        'trailer': str or None,
-        'definitions': {nombre: regexp, ...},
-        'rules': [
-          {
-            'name': ...,
-            'args': [...],
-            'tokens': [
-              (regex, action), ...
-            ]
-          }, ...
-        ],
-        'tokens': [ (regex, action), ... ]  # aplanado
-      }
     """
-    # 1) Leer el archivo, quitar comentarios, y almacenar líneas limpias
     lines = []
     with open(ruta, 'r', encoding='utf-8') as f:
         for raw in f:
@@ -33,69 +15,51 @@ def leerYAL(ruta):
             if clean.strip():
                 lines.append(clean.strip())
 
-    # 2) Modo: leer header opcional
     idx = 0
     header = None
     trailer = None
     definitions = {}
-    rules = []  # cada rule: {'name':..., 'args':..., 'tokens':[...]}
+    rules = []
 
-    # Intentamos ver si la primera línea (o varias) es un bloque { ... }
+    # 1) header optional
     idx, header = parse_optional_brace_block_in_lines(lines, idx)
 
-    # 3) Leer definiciones let ... = ...
+    # 2) definiciones let
     while idx < len(lines):
         line = lines[idx]
         if line.startswith('rule '):
-            # Pasamos a rules
             break
         if line.startswith('let '):
-            # parse definicion
-            # Ej: let nombre = loquesea
-            # se hace parse suelto en la misma linea
-            # o si hay algo multiline? Asumimos la definicion entera está en la línea
             nombre, regexp = parse_let_line(line)
             definitions[nombre] = regexp
             idx += 1
         else:
-            # no let ni rule => salimos
-            idx += 1
+            # no let => paramos
             break
 
-    # 4) Leer rules
+    # 3) rules
     while idx < len(lines):
         line = lines[idx]
         if line.startswith('rule '):
-            # parse rule name, args
+            # parse rule
             rule_name, rule_args = parse_rule_declaration(line)
             idx += 1
-            # luego leemos las lineas de tokens hasta vacio o nueva 'rule ' o '{...}'
+            # leemos lineas hasta toparse con rule, let, '{', o fin
             rule_tokens = []
             while idx < len(lines):
                 l2 = lines[idx]
-                if l2.startswith('rule ') or l2.startswith('let ') or l2.startswith('{') or not l2:
+                if not l2 or l2.startswith('rule ') or l2.startswith('let ') or l2.startswith('{'):
+                    # salimos
                     break
-                # parse "regex {action}" o lines con '|'
-                # una linea tipica:
-                #  ws
-                # o
-                #  id { return ID }
-                # Con pipeline se juntan con '|'. Pero tu parser original permitía multiline
-                # nosotros parseamos cada line. 
-                # Checar si hay '{'...
-                if '{' in l2 and '}' in l2:
-                    # parse
-                    reg, act = parse_regex_action_line(l2)
-                    rule_tokens.append((reg, act))
-                else:
-                    # puede ser una regex sin action
-                    # o puede ser un token sin llaves?
-                    # tu .yal a veces pone algo como:
-                    #  ws
-                    # => no action
-                    reg = l2
-                    act = None
-                    rule_tokens.append((reg, act))
+
+                # si la linea empieza con '|', se la quitamos
+                # asi "| id { return ID }" => "id { return ID }"
+                if l2.startswith('|'):
+                    l2 = l2[1:].strip()
+
+                # parse regex y action
+                reg, act = parse_regex_action_line(l2)
+                rule_tokens.append((reg, act))
                 idx += 1
 
             rules.append({
@@ -104,18 +68,17 @@ def leerYAL(ruta):
                 'tokens': rule_tokens
             })
         elif line.startswith('{'):
-            # Podría ser trailer
+            # quizas trailer
             break
         else:
-            # no es rule => break
+            # nada => break
             break
-        # si no break, continue
-    # fin while rules
+    # fin while
 
-    # 5) Trailer
+    # 4) trailer
     idx, trailer = parse_optional_brace_block_in_lines(lines, idx)
 
-    # 6) Aplanar tokens
+    # aplanar tokens
     all_tokens = []
     for r in rules:
         for (rg, act) in r['tokens']:
@@ -129,14 +92,13 @@ def leerYAL(ruta):
         'tokens': all_tokens
     }
 
-#############################
-# FUNCIONES AUXILIARES
-#############################
+############################
+# Auxiliares
+############################
 
-def quitar_comentarios(line: str)->str:
+def quitar_comentarios(line:str)->str:
     """
-    Elimina los (* ... *) en una sola línea.
-    No soporta multiline (depende de tu .yal).
+    Elimina (* ... *) en una sola línea, si los hay.
     """
     out=''
     i=0
@@ -155,65 +117,41 @@ def quitar_comentarios(line: str)->str:
     return out
 
 def parse_optional_brace_block_in_lines(lines, idx):
-    """
-    Si la linea actual (u otra) inicia con '{',
-    capturamos todo hasta '}' en la misma linea
-    (asumiendo no multiline).
-    Retornamos (nuevo_idx, contenido) o (idx, None).
-    """
     if idx<len(lines):
-        line=lines[idx]
-        line=line.strip()
+        line=lines[idx].strip()
         if line.startswith('{') and line.endswith('}'):
-            # tomamos su contenido
             content=line[1:-1].strip()
             idx+=1
             return idx, content
     return idx, None
 
-def parse_let_line(line: str):
-    """
-    parse 'let nombre = regexp'.
-    Suponemos que cabe en la misma linea.
-    """
-    # remover 'let '
-    rest=line[4:].strip()
-    # splitted by '='
+def parse_let_line(line:str):
+    # e.g. "let ws = delim+"
+    rest=line[4:].strip()  # quitar 'let '
     if '=' in rest:
-        partes=rest.split('=',1)
-        nombre=partes[0].strip()
-        regexp=partes[1].strip()
-    else:
-        # error
-        nombre='???'
-        regexp=''
-    return nombre, regexp
+        nombre,regexp=rest.split('=',1)
+        return nombre.strip(), regexp.strip()
+    return '???',''
 
-def parse_rule_declaration(line: str):
-    """
-    parsea algo como:
-    rule tokens [args] =
-    Devolvemos (tokens, [args]).
-    Asumimos que la parte final '=' puede estar o no.
-    """
-    # remove 'rule '
-    rest=line[5:].strip()
-    # si hay '[' => parse name, y lo que hay en '[]'
-    # sino => parse name
+def parse_rule_declaration(line:str):
+    # e.g. "rule tokens ="
+    # or "rule tokens [args] ="
+    rest=line[5:].strip()  # quita 'rule '
     name=''
     args=[]
     if '[' in rest:
-        # e.g. tokens [ arg1 arg2 ] =
-        i=rest.index('[')
-        name=rest[:i].strip()
-        j=rest.index(']',i)
-        inside=rest[i+1:j].strip()
+        ib=rest.index('[')
+        name=rest[:ib].strip()
+        jb=rest.index(']',ib)
+        inside=rest[ib+1:jb].strip()
         args=inside.split()
-        # si hay '=' => ignorarlo
-        # ...
+        # si hay '='
+        if '=' in rest[jb:]:
+            # ignoring
+            pass
     else:
-        # no brackets
-        # si hay '=' => remove
+        # no bracket
+        # check if '='
         if '=' in rest:
             eqpos=rest.index('=')
             name=rest[:eqpos].strip()
@@ -223,71 +161,28 @@ def parse_rule_declaration(line: str):
 
 def parse_regex_action_line(line:str):
     """
-    parsea algo del tipo:
-    id { return ID }
-    number { return NUMBER }
-    o
-    ws
+    Separa la parte 'regex { action }'
+    o la parte 'regex' sin action.
     """
-    # si no hay '{' => no action
-    if '{' not in line:
-        return line.strip(), None
-    # splitted
-    # e.g. "id { return ID }"
-    idx=line.index('{')
-    reg=line[:idx].strip()
-    after=line[idx+1:]
-    if '}' in after:
-        idx2=after.index('}')
-        act=after[:idx2].strip()
-        # parse return token
-        token= parse_return_token(act)
+    if '{' in line and '}' in line:
+        ib=line.index('{')
+        reg=line[:ib].strip()
+        after=line[ib+1:]
+        jb=after.index('}')
+        act_part=after[:jb].strip()
+        token= parse_return_token(act_part)
         return reg, token
     else:
-        # no cierra
-        return reg,None
+        # no action
+        return line.strip(), None
 
-def parse_return_token(action_str:str):
+def parse_return_token(s:str)->str:
     """
     Si hay 'return X', devolvemos X
     """
-    words=action_str.split()
+    words=s.split()
     if 'return' in words:
         i=words.index('return')
         if i+1<len(words):
             return words[i+1]
     return None
-
-def saltar_espacios(data:str, idx:int)->int:
-    while idx<len(data) and data[idx].isspace():
-        idx+=1
-    return idx
-
-def parse_until_keyword(data, idx, stop_keywords=None):
-    """
-    Originalmente usado en tu parser unificado. 
-    No lo necesitamos con line-by-line approach,
-    pero lo dejamos si se usa. 
-    """
-    if stop_keywords is None:
-        stop_keywords=[]
-    start=idx
-    length=len(data)
-    while idx<length:
-        for kw in stop_keywords:
-            if data.startswith(kw,idx):
-                return data[start:idx], idx
-        idx+=1
-    return data[start:], idx
-
-def parse_until_char(data, idx, char):
-    """
-    Originalmente usado en tu parser unificado. 
-    No lo necesitamos con line-by-line approach,
-    pero lo dejamos si se usa. 
-    """
-    start=idx
-    length=len(data)
-    while idx<length and data[idx]!=char:
-        idx+=1
-    return data[start:idx], idx
