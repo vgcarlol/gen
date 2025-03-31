@@ -1,3 +1,4 @@
+# Código: afn.py
 from utilidades import Stack
 
 def character(c):

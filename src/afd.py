@@ -1,3 +1,4 @@
+# Código: afd.py
 import copy 
 import string
 from utilidades import conjuntoToString  # Para la conversión de conjuntos a cadenas

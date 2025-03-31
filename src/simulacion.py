@@ -1,3 +1,4 @@
+# Código: simulacion.py
 import random
 import copy
 

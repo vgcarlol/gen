@@ -1,58 +1,72 @@
-from regex_functions import leerArchivo, shuntingYard
+# main.py
+
+from yal_parser import leerYAL
+from definicion_expander import expandir_definiciones
+from regex_functions import shuntingYard
 from afn import armarAFN
-from afd import subconjuntos, minimizacion
-from simulacion import simularAFN, simularAFD
-from graficar import graficarAFN, graficarAFD
+from afd import subconjuntos
+from afn_combinado import combinar_afns
+from lexer_generator import generar_lexer_py
 
 def main():
-    data = leerArchivo()
+    # 1) Leer archivo .yal
+    archivo_yal = 'input/slr-4.yal'
+    datos = leerYAL(archivo_yal)
 
-    for i in range(len(data)):
-        print('##################################################################################################################')
-        print(f'Trabajando con la regex {data[i]}\n')
+    print("=== PARSER DE YAL ===")
+    print(f"Definitions leidas: {datos['definitions']}")
+    if 'rules' in datos:
+        for ruleinfo in datos['rules']:
+            print(f"  Regla: {ruleinfo['name']} [args={ruleinfo['args']}] => tokens: {ruleinfo['tokens']}")
+    print(f"Tokens combinados: {datos['tokens']}")
 
-        # Inciso 1: Construcción infix a postfix
-        postfix = shuntingYard(data[i])
-        print(f'Conversión de infix a postfix: {postfix}')
+    # 2) Expandir definiciones
+    tokens_expandidos = expandir_definiciones(datos)
+    print("\n=== EXPANSION DE DEFINICIONES ===")
+    for i, (expreg, tkn) in enumerate(tokens_expandidos):
+        print(f" {i+1}) Token={tkn}, Regex expandida='{expreg}'")
 
-        # Inciso 2: Formar el AFN de la regex
-        print('Construcción del AFN...\n')
-        afn = armarAFN(postfix)
-        #graficarAFN(afn, i)
+    # 3) Construir AFNs
+    token_afns = []
+    id_counter = 1
+    print("\n=== CONSTRUCCION DE AFNs POR TOKEN ===")
+    for (expanded_regex, token_name) in tokens_expandidos:
+        print(f"\n-> Procesando token='{token_name}' con regex='{expanded_regex}'")
+        try:
+            postfix = shuntingYard(expanded_regex)
+            print(f"   Postfix = '{postfix}'")
+            afn = armarAFN(postfix)
+            print(f"   AFN transitions => {afn.transitions}")
 
-        # Inciso 3: Formar el AFD de la regex
-        print('Construcción del AFD...\n')
-        afd = subconjuntos(afn)
-        #graficarAFD(afd, i)
+            afn.token_id = id_counter
+            afn.token_name = token_name or f"TOKEN_{id_counter}"
+            token_afns.append(afn)
+            id_counter += 1
+        except Exception as e:
+            print(f"❌ Error al procesar token='{token_name}' => {e}")
+            continue
 
-        # Inciso 4: Formar el AFD minimizado de la regex
-        print('Construcción del AFD minimizado...\n')
-        afdm = minimizacion(afd)
-        #graficarAFD(afdm, i, True)
+    print(f"\n--- Se construyeron {len(token_afns)} AFNs. ---")
+    for afn in token_afns:
+        print(f"  Token={afn.token_name}, transitions={afn.transitions}")
 
-        while True:
-            # Mostrar el regex que está siendo evaluado
-            cadena = input(f"Ingrese una cadena para probar con la regex '{data[i]}' (o escriba 'next' para pasar a la siguiente regex): ")
+    # 4) Combinar AFNs en uno
+    afn_completo = combinar_afns(token_afns)
+    print("\n=== AFN COMBINADO ===")
+    print("transitions:", afn_completo.transitions)
+    if hasattr(afn_completo, 'token_map'):
+        print("token_map:", afn_completo.token_map)
 
-            if cadena.lower() == 'next':
-                break
+    # 5) Subconjuntos => AFD
+    afd_final = subconjuntos(afn_completo)
+    print("\n=== AFD FINAL ===")
+    print("transitions:", afd_final.getTransitions())
+    print("start:", afd_final.getStart())
+    print("accept:", afd_final.getAccept())
 
-            # Inciso 5: Simulación del AFN de la regex con la cadena
-            print('Simulación del AFN')
-            print(simularAFN(afn, cadena), '\n')
-
-            # Inciso 6: Simulación del AFD de la regex con la cadena
-            print('Simulación del AFD')
-            print(simularAFD(afd, cadena), '\n')
-
-            # Inciso 7: Simulación del AFD minimizado de la regex con la cadena
-            print('Simulación del AFD minimizado')
-            print(simularAFD(afdm, cadena), '\n')
-        
-        print('##################################################################################################################')
-        print('\n\n')
-        print('Finalizado con la regex', data[i])
-        print('\n\n')
+    # 6) Generar lexer
+    generar_lexer_py(afd_final, afn_completo.token_map)
+    print("\n✅ lexer.py generado en output/lexer.py. Ya puedes usarlo con input/codigo.txt")
 
 
 if __name__ == "__main__":
