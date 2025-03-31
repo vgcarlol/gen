@@ -45,7 +45,10 @@ def combinar_afns(lista_afns):
 
         # Mapear estado de aceptación al token
         accept_states.append(afn.getAccept() + offset)
-        token_map[afn.getAccept() + offset] = (afn.token_id, afn.token_name)
+        accept_state = afn.getAccept() + offset
+        if accept_state not in token_map or afn.token_id < token_map[accept_state][0]:
+            token_map[accept_state] = (afn.token_id, afn.token_name)
+
 
         current_offset += afn.getAccept() + 2  # salto suficiente
 

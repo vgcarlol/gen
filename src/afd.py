@@ -43,7 +43,7 @@ def move(states, symbol, transitions):
 
 def subconjuntos(afn):
     afn_transitions = afn.getTransitions()
-    alphabet = set(symbol for (_, symbol) in afn_transitions if symbol != '')
+    alphabet = set(chr(i) for i in range(33, 256) if any((_, chr(i)) in afn_transitions for _ in range(1000)))
 
     # Mapear transiciones ε con ''
     transitions = {}
@@ -85,9 +85,11 @@ def subconjuntos(afn):
         for closure_set, name in dfa_state_names.items():
             for original_accept in afn.accept_states:
                 if original_accept in closure_set:
-                    if name not in accepting_map:
-                        accepting_states.append(name)
+                    if name not in accepting_map or afn.token_map[original_accept][0] < accepting_map[name][0]:
                         accepting_map[name] = afn.token_map[original_accept]
+                    if name not in accepting_states:
+                        accepting_states.append(name)
+
 
     start_state = dfa_state_names[frozenset(start_closure)]
     afd_result = AFD(start_state, accepting_states, dfa_transitions)

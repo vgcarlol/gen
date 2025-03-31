@@ -59,7 +59,6 @@ def orOperator(afn1, afn2):
 
 def armarAFN(postfix):
     stack = Stack()
-    
     for char in postfix:
         if char == '.':
             afn2 = stack.pop()
@@ -72,9 +71,14 @@ def armarAFN(postfix):
         elif char == '*':
             nfa = stack.pop()
             stack.push(kleeneOperator(nfa))
+        elif char == '+':
+            nfa = stack.pop()
+            stack.push(concatOperator(nfa, kleeneOperator(nfa)))
+
         else:
             stack.push(character(char))
     return stack.pop()
+
 class AFN:
     def __init__(self, start, accept, transitions):
         self.start = start

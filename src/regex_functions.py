@@ -106,7 +106,13 @@ def shuntingYard(regex: str) -> str:
     tokens = tokenizeRegex(expanded)
     tokens2 = insertConcat(tokens)
     postfix = applyShunt(tokens2)
+        
+    print(f"Tokens: {tokens2}")
+    print(f"Postfix: {postfix}")
     return postfix
+
+# Lista de símbolos válidos (ASCII 33 al 255)
+VALID_ASCII = [chr(i) for i in range(33, 256)]
 
 def tokenizeRegex(expr: str):
     """
@@ -122,9 +128,9 @@ def tokenizeRegex(expr: str):
     result=[]
     while i<length:
         c=expr[i]
-        if c.isspace():
-            i+=1
-            continue
+#        if c.isspace():
+#            i+=1
+#            continue
         if c=='(':
             result.append(Token(T_LPAREN))
             i+=1
@@ -161,10 +167,19 @@ def tokenizeRegex(expr: str):
             # lo ponemos como T_CHAR de todo ese bloque => p.e. [abc] => T_CHAR('[abc]')
             result.append(Token(T_CHAR,f'[{content}]'))
             i=j+1
-        elif c=='\\' and i+1<length:
-            # \x => T_CHAR(x)
-            result.append(Token(T_CHAR, expr[i+1]))
-            i+=2
+        elif c == '\\' and i + 1 < length:
+            escape_char = expr[i + 1]
+            if escape_char == 'n':
+                result.append(Token(T_CHAR, '\n'))
+            elif escape_char == 't':
+                result.append(Token(T_CHAR, '\t'))
+            elif escape_char in VALID_ASCII:
+                result.append(Token(T_CHAR, escape_char))
+            else:
+                print(f"⚠️ Carácter escapado inválido: \\{escape_char}")
+            i += 2
+
+
         else:
             # un char normal
             result.append(Token(T_CHAR,c))
@@ -211,11 +226,13 @@ def applyShunt(tokens: list)->str:
             if not stack:
                 raise ValueError("Falta '(' en la expresión.")
             stack.pop() # quita LPAREN
-        elif tk.type in [T_UNION,T_CONCAT,T_STAR,T_PLUS,T_QUESTION]:
-            while stack and stack[-1].type!=T_LPAREN and \
-                  get_token_precedence(stack[-1].type)>=get_token_precedence(tk.type):
-                output.append( token2symbol(stack.pop()) )
+        elif tk.type in [T_UNION, T_CONCAT, T_STAR, T_PLUS, T_QUESTION]:
+            # Procesar operadores verdaderos
+            while stack and stack[-1].type != T_LPAREN and \
+                get_token_precedence(stack[-1].type) >= get_token_precedence(tk.type):
+                output.append(token2symbol(stack.pop()))
             stack.append(tk)
+
         else:
             # ignore
             pass
@@ -238,23 +255,14 @@ def token2symbol(tk: Token)->str:
 ###########################
 # formatRegex & helpers
 ###########################
-def formatRegex(regex: str)->str:
-    """
-    Conserva tu pipeline:
-      1) tranformClass => [a-z] a (a|b|c...)
-      2) tranformOpt => ? => (ε|x)
-      3) transformPosKleene => x+ => xx*
-      4) escapeChars => slash
-      5) considerPeriod => '.' => '\.'
-    y luego no insertamos '.' de concatenación, 
-    porque lo manejamos en insertConcat.
-    """
-    regexX=tranformClass(regex)
-    regexX=tranformOpt(regexX)
-    regexX=transformPosKleene(regexX)
-    regexX=escapeChars(regexX)
-    regexX=considerPeriod(regexX)
+def formatRegex(regex: str) -> str:
+    regexX = tranformClass(regex)
+    regexX = tranformOpt(regexX)
+    # Se omite la transformación de '+' para que se procese directamente en armarAFN
+    # regexX = transformPosKleene(regexX)
+    regexX = considerPeriod(regexX)
     return regexX
+
 
 def tranformOpt(string: str)->str:
     stack=[]
@@ -286,70 +294,83 @@ def tranformOpt(string: str)->str:
 def expand_range(start, end)->list:
     return [chr(i) for i in range(ord(start),ord(end)+1)]
 
-def tranformClass(regex: str)->str:
+def tranformClass(regex: str) -> str:
     """
-    [a-z] => (a|b|...|z)
-    [abc] => (a|b|c)
+    Transforma expresiones entre corchetes.
+    Ejemplo: ['A'-'Z''a'-'z'] -> ((A|B|...|Z)|(a|b|...|z))
     """
-    output=''
-    i=0
-    while i<len(regex):
-        if regex[i]=='[':
-            i+=1
-            expanded=[]
-            negate=False
-            if i<len(regex) and regex[i]=='^':
-                negate=True
-                i+=1
-                raise NotImplementedError("No soportamos ^negado todavia.")
-            while i<len(regex) and regex[i]!=']':
-                if (i+2<len(regex)) and regex[i+1]=='-':
-                    expanded+=expand_range(regex[i],regex[i+2])
-                    i+=3
+    output = ''
+    i = 0
+    while i < len(regex):
+        if regex[i] == '[':
+            i += 1
+            expanded = []
+            # Si aparece un '^', no lo soportamos (como indica tu código)
+            if i < len(regex) and regex[i] == '^':
+                i += 1
+                raise NotImplementedError("No soportamos ^negado todavía.")
+            while i < len(regex) and regex[i] != ']':
+                # Detecta rango escrito como: 'X'-'Y'
+                if (i + 6 < len(regex) and
+                    regex[i] == "'" and regex[i+2] == "'" and 
+                    regex[i+3] == '-' and regex[i+4] == "'" and 
+                    regex[i+6] == "'"):
+                    start = regex[i+1]
+                    end = regex[i+5]
+                    expanded += expand_range(start, end)
+                    i += 7
                 else:
                     expanded.append(regex[i])
-                    i+=1
-            # expanded = list de chars
-            group='|'.join(expanded)
-            output+='('+group+')'
-            if i<len(regex) and regex[i]==']':
-                i+=1
+                    i += 1
+            group = '|'.join(expanded)
+            output += '(' + group + ')'
+            if i < len(regex) and regex[i] == ']':
+                i += 1
         else:
-            output+=regex[i]
-            i+=1
+            output += regex[i]
+            i += 1
     return output
 
-def transformPosKleene(regx: str)->str:
-    """
-    x+ => xx*
-    (usa un stack invertido)
-    """
-    output=''
-    stack=Stack()
-    s2=Stack()
-    posKleene=False
-    for i in range(len(regx)):
-        c=regx[(len(regx)-1)-i]
-        if c=='+':
-            posKleene=True
-            continue
-        if posKleene:
-            stack.push(c)
-            if c==')':
-                s2.push(c)
-            elif c=='(':
-                s2.pop()
-            if s2.isEmpty():
-                # terminamos la subexp
-                substring='('
-                while not stack.isEmpty():
-                    substring+=stack.pop()
-                substring+=substring+')*'+')'
-                output=substring+output
-                posKleene=False
+
+def transformPosKleene(regex: str) -> str:
+    # Si la expresión es de un solo carácter o es un literal escapado, no se transforma.
+    if len(regex) <= 1 or (len(regex) == 2 and regex[0] == '\\'):
+        return regex
+    i = 0
+    result = ""
+    while i < len(regex):
+        if regex[i] == '+':
+            # Se requiere que haya un operando antes del '+'
+            if not result:
+                result += '+'
+            else:
+                if result[-1] == ')':
+                    # Buscar la posición del paréntesis de apertura que empareja la última ')'
+                    count = 0
+                    j = len(result) - 1
+                    while j >= 0:
+                        if result[j] == ')':
+                            count += 1
+                        elif result[j] == '(':
+                            count -= 1
+                            if count == 0:
+                                break
+                        j -= 1
+                    if j < 0:
+                        result += '+'
+                    else:
+                        operand = result[j:]
+                        result = result[:j] + operand + operand + '*'
+                else:
+                    # El operando es el último carácter
+                    operand = result[-1]
+                    result = result[:-1] + operand + operand + '*'
+            i += 1
         else:
-            output=c+output
-    return output
+            result += regex[i]
+            i += 1
+    return result
+
 
 def escapeChars(r: str)->str:
     """
@@ -367,15 +388,11 @@ def escapeChars(r: str)->str:
             out+=c
     return out
 
-def considerPeriod(r: str)->str:
-    """
-    Reemplaza '.' literal por '\.'
-    """
-    out=''
-    for i in range(len(r)):
-        c=r[i]
-        if i+1<len(r) and c=='.':
-            out+='\\.'
+def considerPeriod(r: str) -> str:
+    out = ''
+    for c in r:
+        if c == '.':
+            out += r'\.'  # Se agrega la barra y el punto
         else:
-            out+=c
+            out += c
     return out

@@ -58,7 +58,7 @@ def analizar(texto):
     return tokens
 
 if __name__ == '__main__':
-    with open('input/codigo.txt', 'r', encoding='utf-8') as file:
+    with open('input/random_data_3.txt', 'r', encoding='utf-8') as file:
         contenido = file.read()
         resultado = analizar(contenido)
 
