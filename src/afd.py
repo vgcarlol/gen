@@ -43,7 +43,11 @@ def move(states, symbol, transitions):
 
 def subconjuntos(afn):
     afn_transitions = afn.getTransitions()
-    alphabet = set(chr(i) for i in range(33, 256) if any((_, chr(i)) in afn_transitions for _ in range(1000)))
+    alphabet = set()
+
+    for (state, symbol) in afn_transitions.keys():
+        if symbol != '':  # excluye epsilon
+            alphabet.add(symbol)
 
     # Mapear transiciones ε con ''
     transitions = {}

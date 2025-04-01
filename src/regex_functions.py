@@ -235,22 +235,56 @@ def tokenizeRegex(expr: str):
             result.append(Token(T_QUESTION))
             i += 1
         elif c == '[':
-            # Tomar todo hasta ']' y considerarlo un literal
+                # Expandimos el contenido del conjunto de caracteres como múltiples T_CHAR
             j = i + 1
-            bracketLevel = 1
             content = ''
-            while j < length and bracketLevel > 0:
-                if expr[j] == '[':
-                    bracketLevel += 1
-                elif expr[j] == ']':
-                    bracketLevel -= 1
-                    if bracketLevel == 0:
-                        break
+            while j < length and expr[j] != ']':
                 content += expr[j]
                 j += 1
-            # content es lo que hay dentro de los corchetes
-            result.append(Token(T_CHAR, f'[{content}]'))
-            i = j + 1
+            i = j + 1  # Saltamos el ']'
+
+            def expand_range(a, b):
+                return [chr(c) for c in range(ord(a), ord(b) + 1)]
+
+            def expand_class_inline(content):
+                chars = []
+                k = 0
+                while k < len(content):
+                    if content[k] == "'" and (k + 2 < len(content)) and content[k+2] == "'":
+                        c1 = content[k+1]
+                        k += 3
+                        if k + 4 <= len(content) and content[k] == '-' and content[k+1] == "'" and content[k+3] == "'":
+                            c2 = content[k+2]
+                            chars.extend(expand_range(c1, c2))
+                            k += 4
+                        else:
+                            chars.append(c1)
+                    elif content[k] == '\\':
+                        if k + 1 < len(content):
+                            if content[k+1] == 't':
+                                chars.append('\t')
+                            elif content[k+1] == 'n':
+                                chars.append('\n')
+                            else:
+                                chars.append(content[k+1])
+                            k += 2
+                        else:
+                            chars.append('\\')
+                            k += 1
+                    elif content[k] == ' ':
+                        chars.append(' ')
+                        k += 1
+                    else:
+                        chars.append(content[k])
+                        k += 1
+                return chars
+
+            class_chars = expand_class_inline(content)
+            for ch in class_chars:
+                result.append(Token(T_CHAR, ch))
+                result.append(Token(T_UNION))
+            if result and result[-1].type == T_UNION:
+                result.pop()  # elimina el último '|'
         elif c in {"'", '"'}:
             # Si se encuentra una comilla, se recopila todo hasta la comilla de cierre
             quote = c
@@ -269,9 +303,9 @@ def tokenizeRegex(expr: str):
         elif c == '\\' and i + 1 < length:
             escape_char = expr[i + 1]
             if escape_char == 'n':
-                result.append(Token(T_CHAR, '\n'))
+                result.append(Token(T_CHAR, 'n'))
             elif escape_char == 't':
-                result.append(Token(T_CHAR, '\t'))
+                result.append(Token(T_CHAR, 't'))
             elif escape_char in VALID_ASCII:
                 result.append(Token(T_CHAR, escape_char))
             else:
@@ -350,10 +384,8 @@ def token2symbol(tk: Token)->str:
 # formatRegex & helpers
 ###########################
 def formatRegex(regex: str) -> str:
-    regexX = tranformClass(regex)
-    regexX = tranformOpt(regexX)
-    # Se omite la transformación de '+' para que se procese directamente en armarAFN
-    # regexX = transformPosKleene(regexX)
+    # regexX = tranformClass(regex) ❌ Esto rompe el WHITESPACE
+    regexX = tranformOpt(regex)
     regexX = considerPeriod(regexX)
     return regexX
 
@@ -368,64 +400,47 @@ def expand_range(start, end)->list:
     return [chr(i) for i in range(ord(start),ord(end)+1)]
 
 def tranformClass(regex: str) -> str:
-    """
-    Transforma expresiones entre corchetes.
-    Ejemplo: ['A'-'Z''a'-'z'] -> ((A|B|...|Z)|(a|b|...|z))
-    """
     output = ''
     i = 0
     while i < len(regex):
         if regex[i] == '[':
             i += 1
             expanded = []
-            # Si aparece un '^', no lo soportamos
             if i < len(regex) and regex[i] == '^':
                 i += 1
                 raise NotImplementedError("No soportamos ^negado todavía.")
             while i < len(regex) and regex[i] != ']':
-                # Detecta rango escrito como: 'X'-'Y'
                 if (i + 6 < len(regex) and
                     regex[i] == "'" and regex[i+2] == "'" and 
                     regex[i+3] == '-' and regex[i+4] == "'" and 
                     regex[i+6] == "'"):
                     literal1 = regex[i+1]
                     literal2 = regex[i+5]
-                    # Si son ambos letras o ambos dígitos, se expande el rango
-                    if (literal1.isalpha() and literal2.isalpha()) or (literal1.isdigit() and literal2.isdigit()):
-                        expanded += expand_range(literal1, literal2)
-                    else:
-                        # En caso contrario, se tratan como dos literales separados, escapándolos si es necesario.
-                        if literal1 in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
-                            literal1 = "\\" + literal1
-                        if literal2 in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
-                            literal2 = "\\" + literal2
-                        expanded.append(literal1)
-                        expanded.append(literal2)
+                    expanded += expand_range(literal1, literal2)
                     i += 7
-
-                elif regex[i] in {"'", '"'}:
-                    # Extraer literal entre comillas
-                    quote = regex[i]
-                    j = i + 1
-                    literal = ""
-                    while j < len(regex) and regex[j] != quote:
-                        literal += regex[j]
-                        j += 1
-                    if j < len(regex) and regex[j] == quote:
-                        i = j + 1
+                elif regex[i] == "'" and i+2 < len(regex) and regex[i+2] == "'":
+                    char = regex[i+1]
+                    if char == '\\':
+                        if i+4 < len(regex) and regex[i+3] == '\\' and regex[i+4] == "'":
+                            escape_seq = regex[i+2]
+                            if escape_seq == 'n':
+                                expanded.append('\n')
+                            elif escape_seq == 't':
+                                expanded.append('\t')
+                            else:
+                                expanded.append(escape_seq)
+                            i += 5
+                        else:
+                            expanded.append('\\')
+                            i += 3
                     else:
-                        i = j
-                    # Si el literal es un operador especial, escápalo
-                    if literal in {"+", "-", "*", "?", "|", ".", "(", ")", "\\"}:
-                        expanded.append("\\" + literal)
-                    else:
-                        expanded.append(literal)
-
-
+                        expanded.append(char)
+                        i += 3
                 else:
                     expanded.append(regex[i])
                     i += 1
-            group = '|'.join(expanded)
+            # Al final del while
+            group = '|'.join(repr(c)[1:-1] if c in {' ', '\n', '\t'} else c for c in expanded)
             output += '(' + group + ')'
             if i < len(regex) and regex[i] == ']':
                 i += 1
@@ -433,6 +448,7 @@ def tranformClass(regex: str) -> str:
             output += regex[i]
             i += 1
     return output
+
 
 
 
@@ -493,8 +509,27 @@ def escapeChars(r: str)->str:
     return out
 
 def considerPeriod(r: str) -> str:
-    # No modificamos el '.' ya que en nuestro lenguaje el punto se trata como literal.
-    return r
+    """
+    Reemplaza '.' por '\.' si no está escapado ya.
+    """
+    result = ''
+    i = 0
+    while i < len(r):
+        if r[i] == '\\':
+            # Preservar escape existente
+            if i + 1 < len(r):
+                result += r[i] + r[i+1]
+                i += 2
+            else:
+                result += r[i]
+                i += 1
+        elif r[i] == '.':
+            result += '\\.'
+            i += 1
+        else:
+            result += r[i]
+            i += 1
+    return result
 
 
 # --- AST para expresiones regulares ---
