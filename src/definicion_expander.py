@@ -70,16 +70,16 @@ def expandir_definiciones(data):
         return [chr(c) for c in range(ord(start), ord(end) + 1)]
 
 
-
     def expand_char_class(content):
         i = 0
         chars = []
         while i < len(content):
-            # Saltar espacios extra (pero no descartar un literal que sea un espacio)
-            while i < len(content) and content[i].isspace():
+            # Si es espacio, se ignora (o se puede decidir conservarlo si es literal)
+            if content[i].isspace():
                 i += 1
-            if i < len(content) and content[i] == "'":
-                # Primero, intentamos detectar un rango del tipo: 'X'-'Y'
+                continue
+            if content[i] == "'":
+                # Intentar detectar un rango: 'X'-'Y'
                 if (i + 6 < len(content) and
                     content[i] == "'" and content[i+2] == "'" and 
                     content[i+3] == '-' and content[i+4] == "'" and 
@@ -88,9 +88,8 @@ def expandir_definiciones(data):
                     end = content[i+5]
                     chars.extend(expand_range(start, end))
                     i += 7
-
                 else:
-                    # Si no es rango, extraemos el literal entre comillas
+                    # Extraer literal entre comillas
                     j = i + 1
                     literal = ""
                     while j < len(content) and content[j] != "'":
@@ -102,13 +101,13 @@ def expandir_definiciones(data):
                             literal = "\t"
                         elif literal == "\\n":
                             literal = "\n"
-                        # No aplicamos strip() para conservar un espacio literal
                         chars.append(literal)
                     i = j + 1
             else:
+                # Agregar el caracter literal que no está entre comillas
+                chars.append(content[i])
                 i += 1
         return '|'.join(chars)
-
 
 
     def escape_specials(expr):

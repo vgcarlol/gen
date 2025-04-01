@@ -10,52 +10,75 @@ def character(c):
 # Algoritmo de Thompson
 
 def concatOperator(afn1, afn2):
+    # Calculamos el offset: número total de estados en afn1
+    offset = afn1.accept + 1
     transitions = afn1.transitions.copy()
 
+    # Reindexamos las transiciones de afn2
     for (state, symbol), next_states in afn2.transitions.items():
-        if state != afn2.start:
-            new_state = state + afn1.accept
-        else:
+        # Si el estado es el inicial de afn2, se fusiona con el estado de aceptación de afn1
+        if state == afn2.start:
             new_state = afn1.accept
-        
+        else:
+            new_state = state + offset
+
         new_next_states = []
         for next_state in next_states:
-            new_next_state = next_state + afn1.accept
+            # De igual forma, el estado inicial de afn2 se fusiona
+            if next_state == afn2.start:
+                new_next_state = afn1.accept
+            else:
+                new_next_state = next_state + offset
             new_next_states.append(new_next_state)
 
-        key = (new_state, symbol)
-        transitions[key] = new_next_states
+        transitions[(new_state, symbol)] = new_next_states
 
-    return AFN(afn1.start, afn2.accept + afn1.accept, transitions)
+    # El nuevo estado de aceptación es el de afn2, reindexado (no se fusiona)
+    new_accept = afn2.accept + offset
+    return AFN(afn1.start, new_accept, transitions)
+
 
 def kleeneOperator(nfa):
-    start = 0
-    accept = nfa.accept + 2
-    transitions = {(start, ''): [nfa.start + 1, accept], (nfa.accept + 1, ''): [nfa.start + 1, accept]}
-    for (state, symbol), next_states in nfa.transitions.items():
-        new_state = state + 1
-        new_next_states = []
-        for next_state in next_states:
-            new_next_state = next_state + 1
-            new_next_states.append(new_next_state)
-        key = (new_state, symbol)
-        transitions[key] = new_next_states
+    # Se crea un nuevo estado de inicio y uno de aceptación
+    new_start = 0
+    # Se desplaza todo el AFN interno en 1 posición
+    offset = 1
+    new_accept = nfa.accept + offset + 1  # nfa.accept + 2
 
-    return AFN(start, accept, transitions)
+    transitions = {
+        (new_start, ''): [nfa.start + offset, new_accept],
+        (nfa.accept + offset, ''): [nfa.start + offset, new_accept]
+    }
+    for (state, symbol), next_states in nfa.transitions.items():
+        new_state = state + offset
+        new_next_states = [ns + offset for ns in next_states]
+        transitions[(new_state, symbol)] = new_next_states
+
+    return AFN(new_start, new_accept, transitions)
+
 
 def orOperator(afn1, afn2):
-    start = 0
-    accept = afn1.accept + afn2.accept + 3
+    # Nuevo estado de inicio y nuevo estado de aceptación
+    new_start = 0
+    offset = afn1.accept + 1  # desplazamiento para afn1
+    offset2 = offset + (afn2.accept + 1)  # desplazamiento para afn2
+
+    new_accept = offset2  # el último estado será el de aceptación final
+
     transitions = {
-        (start, ''): [afn1.start + 1, afn2.start + afn1.accept + 2],
-        (afn1.accept + 1, ''): [accept],
-        (afn2.accept + afn1.accept + 2, ''): [accept]
+        (new_start, ''): [afn1.start + 1, afn2.start + offset],
+        (afn1.accept + 1, ''): [new_accept],
+        (afn2.accept + offset, ''): [new_accept]
     }
+    # Reindexamos afn1: se le suma 1
     for (state, symbol), next_states in afn1.transitions.items():
-        transitions[(state + 1, symbol)] = [next_state + 1 for next_state in next_states]
+        transitions[(state + 1, symbol)] = [ns + 1 for ns in next_states]
+    # Reindexamos afn2: se le suma el offset calculado
     for (state, symbol), next_states in afn2.transitions.items():
-        transitions[(state + afn1.accept + 2, symbol)] = [next_state + afn1.accept + 2 for next_state in next_states]
-    return AFN(start, accept, transitions)
+        transitions[(state + offset, symbol)] = [ns + offset for ns in next_states]
+
+    return AFN(new_start, new_accept, transitions)
+
 
 def epsilonOperator():
     # Crea un AFN que reconoce la cadena vacía

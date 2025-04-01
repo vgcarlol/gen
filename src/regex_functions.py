@@ -493,13 +493,8 @@ def escapeChars(r: str)->str:
     return out
 
 def considerPeriod(r: str) -> str:
-    out = ''
-    for c in r:
-        if c == '.':
-            out += r'\.'  # Se agrega la barra y el punto
-        else:
-            out += c
-    return out
+    # No modificamos el '.' ya que en nuestro lenguaje el punto se trata como literal.
+    return r
 
 
 # --- AST para expresiones regulares ---
