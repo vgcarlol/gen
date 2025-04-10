@@ -80,7 +80,7 @@ def expandir_definiciones(data):
             for c in content:
                 chars.append(c)
         else:
-            # Si es una clase tipo ["0123456789"], tratamos cada char como literal
+            # Si es una clase tipo ["0123456789"]
             if content.startswith('"') and content.endswith('"'):
                 return '(' + '|'.join(content[1:-1]) + ')'
 

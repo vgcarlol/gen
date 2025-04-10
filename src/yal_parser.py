@@ -12,8 +12,8 @@ def leerYAL(ruta):
     with open(ruta, 'r', encoding='utf-8') as f:
         for raw in f:
             clean = quitar_comentarios(raw)
-            if clean.strip():
-                lines.append(clean.strip())
+            if my_trim(clean):
+                lines.append(my_trim(clean))
 
     idx = 0
     header = None
@@ -21,43 +21,38 @@ def leerYAL(ruta):
     definitions = {}
     rules = []
 
-    # 1) header optional
+    # 1) header opcional
     idx, header = parse_optional_brace_block_in_lines(lines, idx)
 
     # 2) definiciones let
     while idx < len(lines):
         line = lines[idx]
-        if line.startswith('rule '):
+        # Usamos my_trim para evaluar el comienzo de la línea
+        if my_trim(line).startswith('rule '):
             break
-        if line.startswith('let '):
+        if my_trim(line).startswith('let '):
             nombre, regexp = parse_let_line(line)
             definitions[nombre] = regexp
             idx += 1
         else:
-            # no let => paramos
             break
 
     # 3) rules
     while idx < len(lines):
         line = lines[idx]
-        if line.startswith('rule '):
-            # parse rule
+        if my_trim(line).startswith('rule '):
             rule_name, rule_args = parse_rule_declaration(line)
             idx += 1
-            # leemos lineas hasta toparse con rule, let, '{', o fin
             rule_tokens = []
             while idx < len(lines):
                 l2 = lines[idx]
-                if not l2 or l2.startswith('rule ') or l2.startswith('let ') or l2.startswith('{'):
-                    # salimos
+                if not l2 or my_trim(l2).startswith('rule ') or my_trim(l2).startswith('let ') or my_trim(l2).startswith('{'):
                     break
 
-                # si la linea empieza con '|', se la quitamos
-                # asi "| id { return ID }" => "id { return ID }"
-                if l2.startswith('|'):
-                    l2 = l2[1:].strip()
+                if my_trim(l2).startswith('|'):
+                    # Se elimina el '|' y se aplica my_trim
+                    l2 = my_trim(l2[1:])
 
-                # parse regex y action
                 reg, act = parse_regex_action_line(l2)
                 rule_tokens.append((reg, act))
                 idx += 1
@@ -67,13 +62,10 @@ def leerYAL(ruta):
                 'args': rule_args,
                 'tokens': rule_tokens
             })
-        elif line.startswith('{'):
-            # quizas trailer
+        elif my_trim(line).startswith('{'):
             break
         else:
-            # nada => break
             break
-    # fin while
 
     # 4) trailer
     idx, trailer = parse_optional_brace_block_in_lines(lines, idx)
@@ -92,97 +84,99 @@ def leerYAL(ruta):
         'tokens': all_tokens
     }
 
-############################
-# Auxiliares
-############################
 
-def quitar_comentarios(line:str)->str:
+def my_trim(s: str) -> str:
+    whitespace = " \t\n\r"
+    start = 0
+    end = len(s)
+    while start < end and s[start] in whitespace:
+        start += 1
+    while end > start and s[end - 1] in whitespace:
+        end -= 1
+    return s[start:end]
+
+# Otras funciones auxiliares
+
+def quitar_comentarios(line: str) -> str:
     """
     Elimina (* ... *) en una sola línea, si los hay.
     """
-    out=''
-    i=0
-    inside=False
-    while i<len(line):
-        if not inside and line[i:i+2]=='(*':
-            inside=True
-            i+=2
-        elif inside and line[i:i+2]=='*)':
-            inside=False
-            i+=2
+    out = ''
+    i = 0
+    inside = False
+    while i < len(line):
+        if not inside and line[i:i+2] == '(*':
+            inside = True
+            i += 2
+        elif inside and line[i:i+2] == '*)':
+            inside = False
+            i += 2
         else:
             if not inside:
-                out+=line[i]
-            i+=1
+                out += line[i]
+            i += 1
     return out
 
 def parse_optional_brace_block_in_lines(lines, idx):
-    if idx<len(lines):
-        line=lines[idx].strip()
+    if idx < len(lines):
+        line = my_trim(lines[idx])
         if line.startswith('{') and line.endswith('}'):
-            content=line[1:-1].strip()
-            idx+=1
+            content = my_trim(line[1:-1])
+            idx += 1
             return idx, content
     return idx, None
 
-def parse_let_line(line:str):
+def parse_let_line(line: str):
     # e.g. "let ws = delim+"
-    rest=line[4:].strip()  # quitar 'let '
+    rest = my_trim(line[4:])  # quitar 'let ' y limpiar
     if '=' in rest:
-        nombre,regexp=rest.split('=',1)
-        return nombre.strip(), regexp.strip()
-    return '???',''
+        nombre, regexp = rest.split('=', 1)
+        return my_trim(nombre), my_trim(regexp)
+    return '???', ''
 
-def parse_rule_declaration(line:str):
-    # e.g. "rule tokens ="
-    # or "rule tokens [args] ="
-    rest=line[5:].strip()  # quita 'rule '
-    name=''
-    args=[]
+def parse_rule_declaration(line: str):
+    # e.g. "rule tokens =" o "rule tokens [args] ="
+    rest = my_trim(line[5:])  # quitar 'rule ' y limpiar
+    name = ''
+    args = []
     if '[' in rest:
-        ib=rest.index('[')
-        name=rest[:ib].strip()
-        jb=rest.index(']',ib)
-        inside=rest[ib+1:jb].strip()
-        args=inside.split()
-        # si hay '='
-        if '=' in rest[jb:]:
-            # ignoring
-            pass
+        ib = rest.index('[')
+        name = my_trim(rest[:ib])
+        jb = rest.index(']', ib)
+        inside = my_trim(rest[ib+1:jb])
+        args = inside.split()
+        # si hay '=', se ignora
     else:
-        # no bracket
-        # check if '='
         if '=' in rest:
-            eqpos=rest.index('=')
-            name=rest[:eqpos].strip()
+            eqpos = rest.index('=')
+            name = my_trim(rest[:eqpos])
         else:
-            name=rest
-    return name,args
+            name = rest
+    return name, args
 
-def parse_regex_action_line(line:str):
+def parse_regex_action_line(line: str):
     """
     Separa la parte 'regex { action }'
     o la parte 'regex' sin action.
     """
     if '{' in line and '}' in line:
-        ib=line.index('{')
-        reg=line[:ib].strip()
-        after=line[ib+1:]
-        jb=after.index('}')
-        act_part=after[:jb].strip()
-        token= parse_return_token(act_part)
+        ib = line.index('{')
+        reg = my_trim(line[:ib])
+        after = line[ib+1:]
+        jb = after.index('}')
+        act_part = my_trim(after[:jb])
+        token = parse_return_token(act_part)
         return reg, token
     else:
-        # no action
-        return line.strip(), None
+        return my_trim(line), None
 
-def parse_return_token(s:str)->str:
+def parse_return_token(s: str) -> str:
     """
-    Si hay 'return X', devolvemos X
+    Si hay 'return X', devuelve X
     """
-    words=s.split()
+    words = s.split()
     if 'return' in words:
-        i=words.index('return')
-        if i+1<len(words):
-            return words[i+1]
+        i = words.index('return')
+        if i + 1 < len(words):
+            return words[i + 1]
     return None
