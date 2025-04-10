@@ -54,7 +54,21 @@ def analizar(texto):
             tokens.append((texto[i], 'ERROR'))
             i += 1
 
-    return tokens
+    # Post-procesamiento: Si se reconoce un token 'ID' y el lexema está compuesto
+    # únicamente por dígitos, se reasigna a 'NUMBER' solo si se definió 'NUMBER'.
+    # De lo contrario, se marca como 'ERROR'.
+    tokens_corr = []
+    number_definido = any(tok == "NUMBER" for tok in accepting.values())
+    for lex, tok in tokens:
+        if tok == "ID" and lex.isdigit():
+            if number_definido:
+                tokens_corr.append((lex, "NUMBER"))
+            else:
+                tokens_corr.append((lex, "ERROR"))
+        else:
+            tokens_corr.append((lex, tok))
+            
+    return tokens_corr
 
 if __name__ == '__main__':
     with open('input/random_data_3.txt', 'r', encoding='utf-8') as file:
