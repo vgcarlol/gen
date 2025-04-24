@@ -10,7 +10,7 @@ from lexer_generator import generar_lexer_py
 
 def main():
     # 1) Leer archivo .yal
-    archivo_yal = 'input/slr-1.yal'
+    archivo_yal = 'input/slr-4.yal'
     datos = leerYAL(archivo_yal)
 
     print("=== PARSER DE YAL ===")

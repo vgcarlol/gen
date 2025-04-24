@@ -97,7 +97,7 @@ def generar_lexer_py(afd, token_map, ruta_salida="output/lexer.py"):
         f.write("    return tokens_corr\n\n")
         # Bloque main para pruebas
         f.write("if __name__ == '__main__':\n")
-        f.write("    with open('input/random_data_3.txt', 'r', encoding='utf-8') as file:\n")
+        f.write("    with open('input/random_data.txt', 'r', encoding='utf-8') as file:\n")
         f.write("        contenido = file.read()\n")
         f.write("        resultado = analizar(contenido)\n\n")
         f.write("    with open('output/tokens.txt', 'w', encoding='utf-8') as out:\n")

@@ -97,7 +97,7 @@ def subconjuntos(afn):
 
     start_state = dfa_state_names[frozenset(start_closure)]
     afd_result = AFD(start_state, accepting_states, dfa_transitions)
-    afd_result.accepting_map = accepting_map  # ¡esto es clave!
+    afd_result.accepting_map = accepting_map 
     return afd_result
 
 
