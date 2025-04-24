@@ -1,3 +1,4 @@
+# definicion_expander.py
 import string
 
 def is_id_char(c):
