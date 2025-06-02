@@ -91,6 +91,6 @@ if __name__ == "__main__":
     run_parser_srl2(
         ruta,
         ruta_lexer_py="output/lexer.py",
-        ruta_parser_py="yalpar/output/parser_slr4.py",
-        ruta_salida_log="output/yalpar/slr4_numbers.txt"
+        ruta_parser_py="yalpar/output/parser_slr2.py",
+        ruta_salida_log="output/yalpar/slr2_variable.txt"
     )

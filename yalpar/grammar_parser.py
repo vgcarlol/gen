@@ -1,6 +1,30 @@
 # yalpar/grammar_parser.py
 
-import re
+def quitar_comentarios(texto):
+    """
+    Elimina manualmente todos los bloques de comentarios /* ... */ del texto.
+    Recorre el texto carácter a carácter y, cada vez que detecta '/*', salta hasta
+    la siguiente ocurrencia de '*/', descartando todo lo que haya en medio.
+    """
+    resultado = []
+    i = 0
+    n = len(texto)
+    while i < n:
+        # Si encontramos inicio de comentario '/*', saltamos hasta '*/'
+        if i + 1 < n and texto[i] == '/' and texto[i+1] == '*':
+            i += 2
+            # Avanzar hasta encontrar '*/' o llegar al final
+            while i + 1 < n and not (texto[i] == '*' and texto[i+1] == '/'):
+                i += 1
+            # Si encontramos '*/', salta esos dos caracteres también
+            if i + 1 < n:
+                i += 2
+        else:
+            # No es inicio de comentario, conservar el carácter
+            resultado.append(texto[i])
+            i += 1
+    return "".join(resultado)
+
 
 def parse_yalp(filepath):
     """
@@ -9,105 +33,115 @@ def parse_yalp(filepath):
       - non_terminals (set de strings, en minúscula)
       - productions (lista de tuplas: (lhs_minúscula, [símbolos_rhs_normalizados]))
       - start_symbol (string en minúscula)
-    
+
     Estrategia de normalización:
       • Los tokens se guardan tal cual aparecen en %token (en mayúscula).
       • Todos los no-terminales se almacenan en minúscula.
       • Cada vez que en las producciones aparezca un símbolo en mayúscula que 
-        coincida (ignorando mayúsculas/minúsculas) con un no-terminal, se convierte 
-        a su versión en minúscula.
-      • Se mapea también los literales “;”, “<” y “eq” a sus tokens correspondientes 
+        coincida con un token, se conserva en mayúscula.
+      • Se mapean también los literales “;”, “<” y “eq” a sus tokens correspondientes 
         (en mayúscula).
+      • Cualquier otro símbolo que no coincida con token o literal se trata como 
+        no-terminal (se almacena en minúscula).
     """
-    # 1) Leemos el contenido y eliminamos comentarios estilo C (/* ... */).
+    # 1) Leer todo el archivo como texto
     with open(filepath, 'r', encoding='utf-8') as f:
         texto = f.read()
-    texto_sin_comentarios = re.sub(r'/\*.*?\*/', '', texto, flags=re.DOTALL)
 
-    # 2) Partimos en líneas y descartamos vacías.
-    lines = [line.strip() for line in texto_sin_comentarios.splitlines() if line.strip()]
+    # 2) Quitar comentarios /* ... */
+    texto_sin_comentarios = quitar_comentarios(texto)
+
+    # 3) Dividir en líneas, descartando las líneas vacías y espacios sobrantes
+    lines = []
+    for raw_line in texto_sin_comentarios.splitlines():
+        line = raw_line.strip()
+        if line:
+            lines.append(line)
 
     tokens = set()
     non_terminals = set()
     productions = []
     start_symbol = None
 
-    # 3) Leer la sección de %token ...
+    # 4) Leer la sección de %token ...
     i = 0
     while i < len(lines) and lines[i].startswith('%token'):
         # Ejemplo: "%token ID NUMBER PLUS MINUS"
         partes = lines[i].split()
         for tok in partes[1:]:
-            tokens.add(tok)  # guardamos en mayúscula
+            tokens.add(tok)  # guardamos cada token en mayúscula
         i += 1
 
-    # 4) Mapa de literales a tokens (en mayúscula)
+    # 5) Mapa de literales a tokens (en mayúscula)
     literal_map = {
         ';': 'SEMICOLON',
         '<': 'LT',
         'eq': 'EQ',
     }
 
-    # 5) Leer producciones: cada vez que encontramos “:” interpretamos LHS → RHS ;
+    # 6) Leer producciones: cada línea que contenga ':' define un LHS → varias RHS
     while i < len(lines):
         line = lines[i]
         if ':' not in line:
             i += 1
             continue
 
-        # LHS es toda la parte antes de “:”. Lo normalizamos a minúscula:
+        # 6.a) Extraer LHS (parte antes de ':') y pasarlo a minúscula
         lhs_raw = line.split(':', 1)[0].strip()
         lhs = lhs_raw.lower()
         if start_symbol is None:
             start_symbol = lhs
         non_terminals.add(lhs)
 
-        # Construir la parte RHS concatenando líneas si hace falta hasta el “;”
+        # 6.b) Construir la parte RHS (podría abarcar varias líneas hasta ';')
         rhs_part = line.split(':', 1)[1].strip()
         i += 1
+        # Mientras no termine la parte RHS con ';', concatenamos la siguiente línea
         while not rhs_part.endswith(';') and i < len(lines):
             rhs_part += ' ' + lines[i].strip()
             i += 1
 
-        # Quitar el “;” final para quedarnos solo con las alternativas
-        rhs_text = rhs_part[:-1].strip()  # quita el “;”
+        # Ahora rhs_part termina en ';'. Eliminamos ese ';' final.
+        rhs_text = rhs_part[:-1].strip()  # Quita el “;”
+        # Dividir por alternativas con '|'
         alternativas = [alt.strip() for alt in rhs_text.split('|')]
 
         for alt in alternativas:
+            # Cada alt es algo como "expression PLUS term" o "term"
             símbolos = alt.split()
             rhs_normalizado = []
             for sym in símbolos:
-                # Si sym es un token explícito en mayúscula: lo aceptamos tal cual.
+                # 1) Si sym coincide exactamente con alguno de los tokens en mayúscula:
                 if sym in tokens:
                     rhs_normalizado.append(sym)
                     continue
 
-                # Si sym (en minúscula) está en nuestro conjunto de no_terminals: lo usamos.
+                # 2) Si sym en minúscula coincide con un non_terminal que ya conocemos:
                 sym_min = sym.lower()
                 if sym_min in non_terminals:
                     rhs_normalizado.append(sym_min)
                     continue
 
-                # Si al convertir sym a mayúscula obtenemos un token válido:
+                # 3) Si sym.upper() coincide con un token (p. ej. 'eq' → 'EQ'):
                 up = sym.upper()
                 if up in tokens:
                     rhs_normalizado.append(up)
                     continue
 
-                # Si sym aparece en literal_map (ej. ‘;’ → SEMICOLON, ‘<’ → LT, ‘eq’ → EQ):
+                # 4) Si sym corresponde a uno de los literales mapeados:
                 if sym in literal_map:
                     rhs_normalizado.append(literal_map[sym])
                     continue
 
-                # Finalmente, si no es ni token ni lit ni LHS conocido, lo asumimos como no_terminal
-                # (probablemente la primera vez que aparece); lo agregamos en minúscula.
+                # 5) Si no encaja en ninguno de los casos anteriores, tratamos sym como
+                #    un nuevo no-terminal (en minúscula).
                 rhs_normalizado.append(sym_min)
                 non_terminals.add(sym_min)
 
             productions.append((lhs, rhs_normalizado))
 
     if start_symbol is None:
-        raise RuntimeError(f"El archivo {filepath} no define ninguna producción (no halló ':').")
+        raise RuntimeError(f"El archivo {filepath} no define ninguna producción (no encontró ':').")
 
     return {
         'tokens': tokens,
@@ -118,7 +152,7 @@ def parse_yalp(filepath):
 
 
 if __name__ == '__main__':
-    # Pequeña prueba para ver qué se generó
+    # Pequeña prueba para ver qué se generó al invocar directamente este módulo.
     import pprint, sys
     if len(sys.argv) != 2:
         print("Uso: python grammar_parser.py <archivo.yalp>")
