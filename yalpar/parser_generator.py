@@ -7,24 +7,6 @@ from lr0_items import items_LR0
 from slr_table import build_slr_table
 
 def _dict_para_python(d):
-    """
-    Toma un diccionario Python d cuyas claves son tuplas (ej. (0,'ID')) 
-    y valores son tuplas (ej. ('shift',3)) o valores sencillos (ej. 5, None).
-    Devuelve un string con la representación del diccionario tal cual en sintaxis Python.
-
-    Ejemplo de d:
-        {
-          (0,'ID'): ('shift', 3),
-          (4,'$'): ('accept', None),
-          (1,'PLUS'): ('reduce', 2),
-        }
-    Salida deseada:
-    {
-        (0, 'ID'): ('shift', 3),
-        (4, '$'): ('accept', None),
-        (1, 'PLUS'): ('reduce', 2),
-    }
-    """
     líneas = []
     líneas.append("{")
     # Ordenamos las claves para reproducibilidad en el output
@@ -39,13 +21,6 @@ def _dict_para_python(d):
 
 
 def generate_parser(yalp_path, salida_py):
-    """
-    Genera un parser SLR(1) a partir del archivo .yalp en yalp_path,
-    y lo vuelca en salida_py como un módulo Python válido (sin 'null').
-
-    Ejemplo de uso:
-      python yalpar/parser_generator.py slr-1.yalp yalpar/output/parser_slr1.py
-    """
     # 1) Parsear la gramática
     gram = parse_yalp(yalp_path)
     tokens = gram['tokens']

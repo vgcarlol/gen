@@ -3,22 +3,6 @@
 from collections import defaultdict
 
 def compute_first(productions, non_terminals, tokens):
-    """
-    productions: lista de tuplas (lhs, rhs_list), por ejemplo:
-        [('expression',['expression','PLUS','term']),
-         ('expression',['term']),
-         ('term',['term','TIMES','factor']),
-         ('term',['factor']),
-         ('factor',['LPAREN','expression','RPAREN']),
-         ('factor',['ID'])]
-    non_terminals: set de no terminales = {'expression','term','factor'}
-    tokens: set de terminales = {'ID','PLUS','TIMES','LPAREN','RPAREN'}
-
-    Devuelve:
-        - first: dict {symbol → set de terminales ∪ {'' (epsilon)} }
-        - first_of_rhs: dict { tuple(rhs_list) → set de terminales ∪ {''} }, 
-          donde rhs_list es una tupla de símbolos.
-    """
     # Inicializar FIRST
     first = {nt: set() for nt in non_terminals}
     # Para cada terminal t, FIRST[t] = {t}
@@ -92,15 +76,6 @@ def compute_first(productions, non_terminals, tokens):
 
 
 def compute_follow(productions, non_terminals, tokens, start_symbol, first):
-    """
-    Recibe:
-      - productions (igual que antes)
-      - non_terminals, tokens
-      - start_symbol: símbolo inicial de la gramática
-      - first: el dict FIRST calculado previamente
-    Devuelve:
-      - follow: dict { no_terminal → conjunto de terminales ∪ {'$'} }
-    """
     follow = {nt: set() for nt in non_terminals}
     follow[start_symbol].add('$')  # Fin de cadena
 

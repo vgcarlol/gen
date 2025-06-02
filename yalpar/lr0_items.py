@@ -3,12 +3,6 @@
 from collections import defaultdict
 
 def closure(items, productions, non_terminals):
-    """
-    items: un set de tuplas (lhs, rhs_tuple, dot_pos), p. ej. ('E', ('E','PLUS','T'), 0)
-    productions: lista de tuplas (lhs, rhs_list)
-    non_terminals: set de no terminales
-    Devuelve el closure completo de ese set de items.
-    """
     closure_set = set(items)
     cambiado = True
     while cambiado:
@@ -32,12 +26,6 @@ def closure(items, productions, non_terminals):
 
 
 def goto(items, X, productions, non_terminals):
-    """
-    items: set de items en el estado I
-    X: símbolo (terminal o no terminal) por el que queremos desplazar el punto
-    productions, non_terminals: igual que en closure
-    Devuelve: set de items en goto(I, X)
-    """
     moved = set()
     for (lhs, rhs, dot_pos) in items:
         if dot_pos < len(rhs) and rhs[dot_pos] == X:
@@ -48,12 +36,6 @@ def goto(items, X, productions, non_terminals):
 
 
 def items_LR0(productions, non_terminals, start_symbol):
-    """
-    Construye la colección canónica de conjuntos LR(0).
-    Retorna:
-      - C: lista de item-sets. Cada item-set es un frozenset de tuplas (lhs, rhs_tuple, dot_pos).
-      - transitions: dict { (i, X) → j }, donde i, j son índices en la lista C, y X es un símbolo (term o no-term).
-    """
     # 1) Creamos la gramática aumentada: S' → start_symbol
     aug_start = start_symbol + "'"  # Ejemplo: si start_symbol='expression', aug_start="expression'"
     # Insertar al inicio de las producciones la producción aumentada

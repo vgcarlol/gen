@@ -1,11 +1,6 @@
 # yalpar/grammar_parser.py
 
 def quitar_comentarios(texto):
-    """
-    Elimina manualmente todos los bloques de comentarios /* ... */ del texto.
-    Recorre el texto carácter a carácter y, cada vez que detecta '/*', salta hasta
-    la siguiente ocurrencia de '*/', descartando todo lo que haya en medio.
-    """
     resultado = []
     i = 0
     n = len(texto)
@@ -27,23 +22,6 @@ def quitar_comentarios(texto):
 
 
 def parse_yalp(filepath):
-    """
-    Lee un archivo .yalp y devuelve un diccionario con:
-      - tokens (set de strings, en mayúscula)
-      - non_terminals (set de strings, en minúscula)
-      - productions (lista de tuplas: (lhs_minúscula, [símbolos_rhs_normalizados]))
-      - start_symbol (string en minúscula)
-
-    Estrategia de normalización:
-      • Los tokens se guardan tal cual aparecen en %token (en mayúscula).
-      • Todos los no-terminales se almacenan en minúscula.
-      • Cada vez que en las producciones aparezca un símbolo en mayúscula que 
-        coincida con un token, se conserva en mayúscula.
-      • Se mapean también los literales “;”, “<” y “eq” a sus tokens correspondientes 
-        (en mayúscula).
-      • Cualquier otro símbolo que no coincida con token o literal se trata como 
-        no-terminal (se almacena en minúscula).
-    """
     # 1) Leer todo el archivo como texto
     with open(filepath, 'r', encoding='utf-8') as f:
         texto = f.read()
@@ -152,7 +130,6 @@ def parse_yalp(filepath):
 
 
 if __name__ == '__main__':
-    # Pequeña prueba para ver qué se generó al invocar directamente este módulo.
     import pprint, sys
     if len(sys.argv) != 2:
         print("Uso: python grammar_parser.py <archivo.yalp>")

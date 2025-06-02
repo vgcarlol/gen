@@ -3,20 +3,6 @@
 from collections import defaultdict
 
 def build_slr_table(C, transitions, productions_aug, aug_start, non_terminals, tokens, first, follow):
-    """
-    C: lista de item-sets (cada uno es un frozenset de items)
-    transitions: dict { (i, X) → j } donde X ∈ (tokens ∪ non_terminals ∪ {aug_start})
-    productions_aug: lista de producciones, donde la primera es la aumentada 
-                     [(aug_start, [start_symbol]), (A, [...]), (B, [...]), ...]
-    aug_start: nombre del símbolo aumentado
-    non_terminals: set de no terminales
-    tokens: set de terminales (tal cual venían en %token)
-    first, follow: los dict FIRST y FOLLOW ya calculados
-
-    Devuelve:
-      - action: dict { (i, terminal) → ('shift', j) / ('reduce', prod_index) / ('accept', None) }
-      - goto: dict { (i, non_terminal) → j }
-    """
     action = dict()
     goto = dict()
 
@@ -70,7 +56,6 @@ def build_slr_table(C, transitions, productions_aug, aug_start, non_terminals, t
     return action, goto
 
 
-# Prueba rápida (ejecutar solo si se invoca directamente)
 if __name__ == '__main__':
     from grammar_parser import parse_yalp
     from lr0_items import items_LR0

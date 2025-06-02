@@ -5,9 +5,6 @@ import importlib.util
 import os
 
 def cargar_modulo_desde_ruta(nombre_modulo, ruta_archivo):
-    """
-    Carga dinámicamente un módulo de Python a partir de la ruta de su archivo .py.
-    """
     spec = importlib.util.spec_from_file_location(nombre_modulo, ruta_archivo)
     if spec is None:
         raise ImportError(f"No se pudo crear spec para {ruta_archivo}")
