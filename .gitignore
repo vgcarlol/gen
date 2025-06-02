@@ -1,0 +1,5 @@
+# Ignorar todo el contenido de la carpeta output/yalpar
+output/yalpar/
+
+# Ignorar el archivo tokens.txt dentro de output
+output/tokens.txt

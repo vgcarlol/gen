@@ -1,0 +1,8 @@
+python yalpar/parser_generator.py input/yalp/slr-1.yalp yalpar/output/parser_slr1.py
+python yalpar/parser_generator.py input/yalp/slr-2.yalp yalpar/output/parser_slr2.py
+python yalpar/parser_generator.py input/yalp/slr-3.yalp yalpar/output/parser_slr3.py
+python yalpar/parser_generator.py input/yalp/slr-4.yalp yalpar/output/parser_slr4.py
+
+
+python yalpar/main.py input/txt/numbers_expressions.txt
+python yalpar/main.py input/txt/variable_expressions.txt

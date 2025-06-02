@@ -1,0 +1,58 @@
+/* Configuración del parser para Gramática No.2 (versión corregida) */
+/* 
+   - Se agregan %ignore WHITESPACE para descartar espacios/tab/newline
+   - Se añade %token SEMICOLON para reconocer ‘;’
+   - Se reestructura “program” para NO tener producción vacía
+   - Cada linea (‘statement’) termina en ‘;’
+*/
+
+%token ID
+%token NUMBER
+%token PLUS
+%token MINUS
+%token TIMES
+%token DIV
+%token LPAREN
+%token RPAREN
+%token SEMICOLON
+
+%ignore WHITESPACE   /* Ignora espacios, tabs y saltos de línea */
+
+%%
+
+/* Un programa es una “lista no vacía” de statements, separados opcionalmente por ‘;’ */
+program:
+    statement_list
+;
+
+/* Una lista de statements: al menos uno, luego opcionalmente más precedidos por ‘;’ */
+statement_list:
+      statement
+    | statement_list SEMICOLON statement
+;
+
+/* Cada statement es una expresión seguida de ‘;’ */
+statement:
+    expression SEMICOLON
+;
+
+/* Reglas de expresiones con + y - */
+expression:
+      expression PLUS term
+    | expression MINUS term
+    | term
+;
+
+/* Reglas de términos con * y / */
+term:
+      term TIMES factor
+    | term DIV factor
+    | factor
+;
+
+/* Un factor puede ser paréntesis, identificador o número */
+factor:
+      LPAREN expression RPAREN
+    | ID
+    | NUMBER
+;

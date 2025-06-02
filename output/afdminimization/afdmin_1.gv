@@ -1,7 +1,0 @@
-digraph AFD {
-	C [shape=doublecircle]
-	A
-	A -> A [label=a]
-	C -> C [label=a]
-	A -> C [label=b]
-}
